@@ -48,12 +48,14 @@ struct ContentView: View {
 
                             if !active.isEmpty {
                                 VStack(alignment: .leading, spacing: 10) {
-                                    Text("IN PROGRESS")
-                                        .font(.system(size: 13, weight: .heavy, design: .serif))
+                                    Text("IN PROGRESS · swipe left to delete")
+                                        .font(.system(size: 12, weight: .heavy, design: .serif))
                                         .tracking(1.5)
                                         .foregroundColor(GC.dim)
                                     ForEach(active) { m in
-                                        HStack(spacing: 6) {
+                                        SwipeDeleteRow(onDelete: {
+                                            pendingDelete = m.id
+                                        }) {
                                             NavigationLink(value: m.id) {
                                                 HStack(spacing: 10) {
                                                     GameTile(kind: m.kind, size: 40)
@@ -67,16 +69,11 @@ struct ContentView: View {
                                                             .lineLimit(1)
                                                     }
                                                     Spacer()
+                                                    Image(systemName: "chevron.right")
+                                                        .font(.caption)
+                                                        .foregroundColor(GC.overlay)
                                                 }
-                                            }
-                                            .buttonStyle(.plain)
-                                            Button {
-                                                pendingDelete = m.id
-                                            } label: {
-                                                Image(systemName: "trash")
-                                                    .font(.system(size: 17, weight: .semibold))
-                                                    .foregroundColor(GC.red)
-                                                    .frame(width: 44, height: 44)
+                                                .contentShape(Rectangle())
                                             }
                                             .buttonStyle(.plain)
                                         }
@@ -295,5 +292,66 @@ struct GameHomeView: View {
             resolved.append(candidate)
         }
         started = store.startMatch(kind: kind, names: resolved, dealer: 0, target: target)
+    }
+}
+
+/// A row that slides left to reveal a flat red Delete button.
+struct SwipeDeleteRow<Content: View>: View {
+    let onDelete: () -> Void
+    let content: Content
+    @State private var offset: CGFloat = 0
+    @State private var open = false
+
+    private let reveal: CGFloat = 84
+
+    init(onDelete: @escaping () -> Void, @ViewBuilder content: () -> Content) {
+        self.onDelete = onDelete
+        self.content = content()
+    }
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            Button {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    offset = 0
+                    open = false
+                }
+                onDelete()
+            } label: {
+                Text("Delete")
+                    .font(.subheadline.bold())
+                    .foregroundColor(GC.base)
+                    .frame(width: reveal - 6, height: 44)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(GC.red))
+            }
+            .buttonStyle(.plain)
+            .opacity(offset < -8 ? 1 : 0)
+
+            content
+                .padding(.vertical, 2)
+                .background(GC.mantle)
+                .offset(x: offset)
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 14)
+                        .onChanged { g in
+                            if abs(g.translation.width) < abs(g.translation.height) { return }
+                            let base: CGFloat = open ? -reveal : 0
+                            offset = min(0, max(-reveal - 20, base + g.translation.width))
+                        }
+                        .onEnded { g in
+                            if abs(g.translation.width) < abs(g.translation.height) { return }
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                if offset < -reveal / 2 {
+                                    offset = -reveal
+                                    open = true
+                                } else {
+                                    offset = 0
+                                    open = false
+                                }
+                            }
+                        }
+                )
+        }
+        .clipped()
     }
 }

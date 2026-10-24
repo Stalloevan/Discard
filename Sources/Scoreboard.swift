@@ -17,7 +17,7 @@ struct ScoreStrip: View {
                 }
             }
         }
-        .frame(height: 78)
+        .frame(height: 70)
     }
 
     private func extraLine(_ i: Int) -> String {

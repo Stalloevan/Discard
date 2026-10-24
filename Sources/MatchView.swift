@@ -34,7 +34,7 @@ struct MatchView: View {
                 } else {
                     GCHeader("Game")
                 }
-                ZStack {
+                ZStack(alignment: .top) {
                     if let m = match {
                         content(m)
                     } else {
@@ -148,7 +148,7 @@ struct MatchView: View {
             }
         }
         .padding(.horizontal, 12)
-        .padding(.top, 8)
+        .padding(.top, 6)
         .padding(.bottom, 8)
     }
 

@@ -312,7 +312,7 @@ struct GCHeader<Trailing: View>: View {
         }
         .padding(.horizontal, 12)
         .padding(.top, 8)
-        .padding(.bottom, 12)
+        .padding(.bottom, 10)
         .frame(maxWidth: .infinity)
         .background(LeatherBar().ignoresSafeArea(edges: .top))
     }

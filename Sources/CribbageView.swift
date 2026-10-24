@@ -13,8 +13,8 @@ struct SnakeGeo {
     let top: CGFloat = 20
     let bottom: CGFloat = 4
     let side: CGFloat = 2
-    let cols: Int
-    let rows: Int
+    let perRow: Int
+    let rowCount: Int
 
     init(size: CGSize, count: Int, lo: Int, hi: Int) {
         self.size = size
@@ -25,18 +25,18 @@ struct SnakeGeo {
         let laneW = (size.width - 4) / CGFloat(n) - 6
         let h = size.height - 24
         let total = hi - lo + 1
-        var bestCols = 1
+        var best = 2
         var bestScore: CGFloat = 0
-        for c in 1...6 {
-            let r = Int((Double(total) / Double(c)).rounded(.up))
-            let cell = min(laneW / CGFloat(c), h / CGFloat(max(r, 1)))
+        for k in 2...14 {
+            let r = Int((Double(total) / Double(k)).rounded(.up))
+            let cell = min(laneW / CGFloat(k), h / CGFloat(max(r, 1)))
             if cell > bestScore + 0.5 {
                 bestScore = cell
-                bestCols = c
+                best = k
             }
         }
-        self.cols = bestCols
-        self.rows = Int((Double(total) / Double(bestCols)).rounded(.up))
+        self.perRow = best
+        self.rowCount = Int((Double(total) / Double(best)).rounded(.up))
     }
 
     var laneWidth: CGFloat {
@@ -44,36 +44,38 @@ struct SnakeGeo {
     }
 
     var cellW: CGFloat {
-        return (laneWidth - 6) / CGFloat(cols)
+        return (laneWidth - 6) / CGFloat(perRow)
     }
 
     var cellH: CGFloat {
-        return (size.height - top - bottom) / CGFloat(max(rows, 1))
+        return (size.height - top - bottom) / CGFloat(max(rowCount, 1))
     }
 
     var cell: CGFloat {
         return min(cellW, cellH)
     }
 
+    /// Pegs are small; the holes they sit in are big.
     var pegSize: CGFloat {
-        return min(max(cell * 0.86, 14), 44)
+        return min(max(cell * 0.5, 12), 26)
+    }
+
+    var holeRadius: CGFloat {
+        return min(max(cell * 0.3, 3), 10)
     }
 
     func laneCenter(_ p: Int) -> CGFloat {
         return side + laneWidth * (CGFloat(p) + 0.5)
     }
 
+    /// The track is an S: the bottom row runs left to right, the next one right to left, and so on up.
     func point(_ p: Int, _ idx: Int) -> CGPoint {
         let off = min(max(idx - lo, 0), hi - lo)
-        let c = off / rows
-        let r = off % rows
-        let x = side + laneWidth * CGFloat(p) + 3 + cellW * (CGFloat(c) + 0.5)
-        let y: CGFloat
-        if c % 2 == 0 {
-            y = size.height - bottom - cellH * (CGFloat(r) + 0.5)
-        } else {
-            y = top + cellH * (CGFloat(r) + 0.5)
-        }
+        let row = off / perRow
+        let k = off % perRow
+        let col = row % 2 == 0 ? k : perRow - 1 - k
+        let x = side + laneWidth * CGFloat(p) + 3 + cellW * (CGFloat(col) + 0.5)
+        let y = size.height - bottom - cellH * (CGFloat(row) + 0.5)
         return CGPoint(x: x, y: y)
     }
 
@@ -140,7 +142,6 @@ struct PegHandle: View {
 struct PegBoard: View {
     let names: [String]
     let pegs: [Peg]
-    let previews: [Int]         // holes each player's wheel would add
     /// (player, whichPeg: 0 = back, 1 = front, hole)
     let onPlace: (Int, Int, Int) -> Void
 
@@ -216,16 +217,8 @@ struct PegBoard: View {
     private func pegViews(_ p: Int, _ g: SnakeGeo) -> some View {
         let color = seatColors[p % 8]
         let peg = pegs[p]
-        let add = p < previews.count ? previews[p] : 0
         let d = g.pegSize
         return ZStack {
-            if add > 0 && dragPlayer == nil && peg.front + add <= g.hi {
-                Circle()
-                    .strokeBorder(color, style: StrokeStyle(lineWidth: 3, dash: [4, 3]))
-                    .frame(width: d, height: d)
-                    .position(g.point(p, peg.front + add))
-                    .allowsHitTesting(false)
-            }
             // Front (leading) peg: drag it back to undo a mistaken move
             PegHandle(
                 color: color,
@@ -296,7 +289,7 @@ struct PegBoard: View {
     private func drawBoard(ctx: inout GraphicsContext, g: SnakeGeo) {
         let n = pegs.count
         if n == 0 { return }
-        let dot = min(g.cell * 0.09, 3.2)
+        let dot = g.holeRadius
 
         for p in 0..<n {
             let color = seatColors[p % 8]
@@ -310,20 +303,28 @@ struct PegBoard: View {
                 .foregroundColor(GC.text)
             ctx.draw(label, at: CGPoint(x: g.laneCenter(p), y: 9))
 
+            // The S-shaped track
+            var track = Path()
+            track.move(to: g.point(p, g.lo))
+            for idx in (g.lo + 1)...g.hi {
+                track.addLine(to: g.point(p, idx))
+            }
+            ctx.stroke(track, with: .color(color.opacity(0.35)), style: StrokeStyle(lineWidth: max(dot, 2), lineCap: .round, lineJoin: .round))
+
             for idx in g.lo...g.hi {
                 let pt = g.point(p, idx)
                 let special = idx == 61 || idx == 91 || idx == 121
                 let five = idx % 5 == 0
-                let r: CGFloat = special ? dot * 1.5 : (five ? dot * 1.25 : dot)
+                let r: CGFloat = special ? dot * 1.2 : dot
                 let dotRect = CGRect(x: pt.x - r, y: pt.y - r, width: 2 * r, height: 2 * r)
-                var c: Color = five ? GC.dim : GC.overlay
+                var c: Color = five ? GC.dim : GC.surface1
                 if special { c = GC.red }
                 ctx.fill(Path(ellipseIn: dotRect), with: .color(c))
-                if (five || idx == g.lo) && g.cell >= 18 {
+                if five && dot >= 6 {
                     let t = Text("\(idx)")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundColor(GC.dim)
-                    ctx.draw(t, at: CGPoint(x: pt.x, y: pt.y + g.cell * 0.34))
+                        .font(.system(size: min(dot * 1.1, 10), weight: .bold))
+                        .foregroundColor(GC.base)
+                    ctx.draw(t, at: pt)
                 }
             }
         }
@@ -345,7 +346,6 @@ struct CribbageBoardView: View {
                 PegBoard(
                     names: m.names,
                     pegs: m.pegs,
-                    previews: m.finished ? [] : Array(amounts.prefix(m.names.count)),
                     onPlace: { p, which, hole in
                         place(p, which, hole)
                     }
