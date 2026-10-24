@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct WarView: View {
+struct WarPanel: View {
     let matchID: UUID
     @EnvironmentObject var store: Store
 
@@ -26,35 +26,35 @@ struct WarView: View {
         if let m = match {
             let total = GameRules.warPer(m.names.count) * m.names.count
             let held = m.cards.reduce(0, +)
-            Section("Set each player's card count") {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(0..<m.names.count, id: \.self) { i in
-                            WheelColumn(title: m.names[i], value: binding(i), range: 0...total)
-                        }
-                    }
-                }
+            VStack(spacing: 8) {
                 HStack {
-                    Text("Cards counted")
+                    Text("Cards held")
+                        .font(.headline)
+                        .foregroundColor(.white)
                     Spacer()
-                    Text("\(held) of \(total)")
-                        .foregroundStyle(held == total ? Color.green : Color.orange)
+                    Text("\(held) / \(total)")
+                        .font(.subheadline.bold())
+                        .foregroundColor(held == total ? Color.green : GC.gold)
                         .monospacedDigit()
                 }
-                let out = m.names.indices.filter { m.cards[$0] == 0 }.map { m.names[$0] }
-                if !out.isEmpty {
-                    Text("Out: " + out.joined(separator: ", "))
+                WheelRow(
+                    titles: m.names,
+                    values: (0..<m.names.count).map { i in binding(i) },
+                    range: 0...total
+                )
+                HStack {
+                    let out = m.names.indices.filter { m.cards[$0] == 0 }.map { m.names[$0] }
+                    Text(out.isEmpty ? "Set each player's count after every battle." : "Out: " + out.joined(separator: ", "))
                         .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            Section {
-                Button(role: .destructive) {
-                    store.mutate(matchID) { mm in
-                        mm.cards = Array(repeating: GameRules.warPer(mm.names.count), count: mm.names.count)
+                        .foregroundColor(GC.dim)
+                        .lineLimit(2)
+                    Spacer()
+                    Button("Reset") {
+                        store.mutate(matchID) { mm in
+                            mm.cards = Array(repeating: GameRules.warPer(mm.names.count), count: mm.names.count)
+                        }
                     }
-                } label: {
-                    Label("Reset to the starting deal", systemImage: "arrow.counterclockwise")
+                    .buttonStyle(GlossButtonStyle(tint: Color.gray, compact: true))
                 }
             }
         }

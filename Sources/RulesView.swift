@@ -1,5 +1,24 @@
 import SwiftUI
 
+/// Rules live behind the book icon. Shown as a sheet.
+struct RulesSheet: View {
+    let kind: GameKind
+    let players: Int
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            RulesView(kind: kind, players: players)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { dismiss() }
+                    }
+                }
+        }
+        .preferredColorScheme(.dark)
+    }
+}
+
 struct RulesView: View {
     let kind: GameKind
     @State private var count: Int
@@ -23,6 +42,7 @@ struct RulesView: View {
                 }
                 .pickerStyle(.segmented)
             }
+            .listRowBackground(Color.black.opacity(0.3))
 
             Section("Setup for \(count) players") {
                 LabeledContent("Decks", value: setup.decks)
@@ -33,6 +53,7 @@ struct RulesView: View {
                         .font(.subheadline)
                 }
             }
+            .listRowBackground(Color.black.opacity(0.3))
 
             Section("All player counts") {
                 ForEach(2...8, id: \.self) { n in
@@ -44,10 +65,11 @@ struct RulesView: View {
                             .font(.caption)
                         Text("Removed: \(s.removed)")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundColor(GC.dim)
                     }
                 }
             }
+            .listRowBackground(Color.black.opacity(0.3))
 
             ForEach(GameRules.overview(kind)) { section in
                 Section(section.title) {
@@ -56,10 +78,14 @@ struct RulesView: View {
                             .font(.subheadline)
                     }
                 }
+                .listRowBackground(Color.black.opacity(0.3))
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(FeltBackground())
         .navigationTitle("\(kind.title) rules")
         .navigationBarTitleDisplayMode(.inline)
+        .gcNavigation()
     }
 }
 
@@ -76,46 +102,10 @@ struct StatsView: View {
 
     var body: some View {
         List {
-            Section("Lineups") {
-                if store.lineups.isEmpty {
-                    Text("Start a game to remember a lineup.")
-                        .foregroundStyle(.secondary)
-                }
-                ForEach(store.lineups.sorted { $0.lastUsed > $1.lastUsed }) { l in
-                    DisclosureGroup(l.names.joined(separator: ", ")) {
-                        let anyPlayed = GameKind.allCases.contains { (l.played[$0.rawValue] ?? 0) > 0 }
-                        if !anyPlayed {
-                            Text("No finished games yet")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        ForEach(GameKind.allCases) { k in
-                            let played = l.played[k.rawValue] ?? 0
-                            if played > 0 {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("\(k.title) · \(played) game\(played == 1 ? "" : "s")")
-                                        .font(.subheadline.bold())
-                                    let w = l.wins[k.rawValue] ?? [:]
-                                    let line = l.names.map { "\($0) \(w[$0] ?? 0)" }.joined(separator: " · ")
-                                    Text(line)
-                                        .font(.caption)
-                                }
-                            }
-                        }
-                    }
-                }
-                .onDelete { offsets in
-                    let sorted = store.lineups.sorted { $0.lastUsed > $1.lastUsed }
-                    let ids = offsets.map { sorted[$0].id }
-                    store.lineups.removeAll { ids.contains($0.id) }
-                    store.save()
-                }
-            }
-
-            Section("Players") {
+            Section("Games won") {
                 if playerNames.isEmpty {
                     Text("No finished games yet.")
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(GC.dim)
                 }
                 ForEach(playerNames, id: \.self) { name in
                     let perGame = store.players[name] ?? [:]
@@ -131,11 +121,12 @@ struct StatsView: View {
                     }
                 }
             }
+            .listRowBackground(Color.black.opacity(0.3))
 
             Section("Finished games") {
                 if finished.isEmpty {
                     Text("None yet.")
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(GC.dim)
                 }
                 ForEach(finished) { m in
                     VStack(alignment: .leading, spacing: 2) {
@@ -146,7 +137,7 @@ struct StatsView: View {
                             .font(.caption)
                         Text(m.names.joined(separator: ", "))
                             .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .foregroundColor(GC.dim)
                     }
                 }
                 .onDelete { offsets in
@@ -156,7 +147,12 @@ struct StatsView: View {
                     }
                 }
             }
+            .listRowBackground(Color.black.opacity(0.3))
         }
+        .scrollContentBackground(.hidden)
+        .background(FeltBackground())
         .navigationTitle("Games won")
+        .navigationBarTitleDisplayMode(.inline)
+        .gcNavigation()
     }
 }

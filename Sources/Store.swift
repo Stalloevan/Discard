@@ -6,23 +6,13 @@ struct Tally: Codable, Hashable {
     var won: Int = 0
 }
 
-struct Lineup: Codable, Identifiable, Hashable {
-    var id = UUID()
-    var names: [String]
-    var lastUsed: Date = Date()
-    var played: [String: Int] = [:]
-    var wins: [String: [String: Int]] = [:]
-}
-
 struct Snapshot: Codable {
     var matches: [GameMatch] = []
-    var lineups: [Lineup] = []
     var players: [String: [String: Tally]] = [:]
 }
 
 final class Store: ObservableObject {
     @Published var matches: [GameMatch] = []
-    @Published var lineups: [Lineup] = []
     @Published var players: [String: [String: Tally]] = [:]
 
     private let url: URL
@@ -33,42 +23,20 @@ final class Store: ObservableObject {
         if let data = try? Data(contentsOf: url),
            let snap = try? JSONDecoder().decode(Snapshot.self, from: data) {
             matches = snap.matches
-            lineups = snap.lineups
             players = snap.players
         }
     }
 
     func save() {
-        let snap = Snapshot(matches: matches, lineups: lineups, players: players)
+        let snap = Snapshot(matches: matches, players: players)
         if let data = try? JSONEncoder().encode(snap) {
             try? data.write(to: url, options: .atomic)
         }
     }
 
-    // MARK: Lineups
-
-    func lineupKey(_ names: [String]) -> String {
-        let lowered = names.map { $0.lowercased() }
-        return lowered.sorted().joined(separator: "|")
-    }
-
-    private func touchLineup(_ names: [String]) {
-        let key = lineupKey(names)
-        if let i = lineups.firstIndex(where: { lineupKey($0.names) == key }) {
-            lineups[i].lastUsed = Date()
-            lineups[i].names = names
-        } else {
-            lineups.append(Lineup(names: names))
-        }
-    }
-
-    func seriesWins(_ m: GameMatch) -> [(String, Int)] {
-        let key = lineupKey(m.names)
-        var wins: [String: Int] = [:]
-        if let l = lineups.first(where: { lineupKey($0.names) == key }) {
-            wins = l.wins[m.kind.rawValue] ?? [:]
-        }
-        return m.names.map { ($0, wins[$0] ?? 0) }
+    func wins(_ name: String, _ kind: GameKind) -> Int {
+        let perGame = players[name] ?? [:]
+        return perGame[kind.rawValue]?.won ?? 0
     }
 
     // MARK: Matches
@@ -96,7 +64,6 @@ final class Store: ObservableObject {
             m.cards = Array(repeating: GameRules.warPer(n), count: n)
         }
         matches.insert(m, at: 0)
-        touchLineup(names)
         save()
         return m.id
     }
@@ -147,16 +114,6 @@ final class Store: ObservableObject {
             if winnerNames.contains(name) { t.won += 1 }
             perGame[m.kind.rawValue] = t
             players[name] = perGame
-        }
-        let key = lineupKey(m.names)
-        if let li = lineups.firstIndex(where: { lineupKey($0.names) == key }) {
-            let raw = m.kind.rawValue
-            lineups[li].played[raw] = (lineups[li].played[raw] ?? 0) + 1
-            var w: [String: Int] = lineups[li].wins[raw] ?? [:]
-            for name in winnerNames {
-                w[name] = (w[name] ?? 0) + 1
-            }
-            lineups[li].wins[raw] = w
         }
         save()
     }
