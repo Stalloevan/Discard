@@ -18,19 +18,19 @@ struct MatchView: View {
     }
 
     var body: some View {
+        // Respects the safe area on purpose: that is how we learn where the notch is.
         GeometryReader { geo in
             let ins = geo.safeAreaInsets
-            let w = geo.size.width
-            let h = geo.size.height
+            let fullW = geo.size.width + ins.leading + ins.trailing
+            let fullH = geo.size.height + ins.top + ins.bottom
             // The whole game UI is laid out like a portrait screen, then turned a quarter turn (header on the left).
             // Portrait top/leading/bottom/trailing are the screen's left/bottom/right/top.
             let pins = EdgeInsets(top: ins.leading, leading: ins.bottom, bottom: ins.trailing, trailing: ins.top)
             portraitUI(pins)
-                .frame(width: h, height: w)
+                .frame(width: fullH, height: fullW)
                 .rotationEffect(.degrees(-90))
-                .position(x: w / 2, y: h / 2)
+                .position(x: fullW / 2 - ins.leading, y: fullH / 2 - ins.top)
         }
-        .ignoresSafeArea()
         .background(FeltBackground())
         .gcNavigation()
         .onAppear {

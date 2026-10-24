@@ -32,26 +32,25 @@ func remainingRange(_ values: [Int], _ i: Int, cap: Int) -> ClosedRange<Int> {
     return 0...max(0, cap - others)
 }
 
-/// Where everyone sits. The UI is laid out like a portrait screen and the whole thing is turned a quarter turn
-/// for landscape play: even counts split evenly between the two long sides of the table (the "top" row faces
-/// the far edge, the "bottom" row faces the near edge); an odd count adds the last person at the end of the table.
+/// Where everyone sits. The table has two long sides, shown as the left and right columns of the screen.
+/// Even counts split evenly; an odd count adds the last person at the end of the table (the bottom edge).
 struct TableSeating {
-    let bottom: [Int]
-    let top: [Int]
+    let left: [Int]
+    let right: [Int]
     let end: Int?
 }
 
 func tableSeating(_ n: Int) -> TableSeating {
-    if n <= 1 { return TableSeating(bottom: Array(0..<max(n, 0)), top: [], end: nil) }
+    if n <= 1 { return TableSeating(left: Array(0..<max(n, 0)), right: [], end: nil) }
     let k = n / 2
     return TableSeating(
-        bottom: Array(0..<k),
-        top: Array(k..<(2 * k)),      // this row is turned 180 degrees, so these run right to left
+        left: Array(0..<k),
+        right: Array(k..<(2 * k)),
         end: n % 2 == 1 ? n - 1 : nil
     )
 }
 
-/// Turns its content a quarter turn so it faces the person at the end of the table.
+/// Turns its content so it faces a seat: 90 for the left edge, -90 for the right edge.
 struct EndFacing<Content: View>: View {
     let angle: Double
     let content: Content
@@ -71,33 +70,36 @@ struct EndFacing<Content: View>: View {
     }
 }
 
-/// The table: controls upright at the top, then two rows of cells that fill the rest with no gaps. The far row
-/// is turned upside down, the end seat a quarter turn.
+/// The table. The controls strip stays upright at the top. Below it, two columns of cells fill all the
+/// remaining space with no gaps: the left column faces the left edge, the right column faces the right edge
+/// (text turned toward the edge). An odd player's cell sits upright along the bottom.
 struct TableView<Cell: View, Center: View>: View {
     let count: Int
     var centerHeight: CGFloat
-    var endWidth: CGFloat
+    var endHeight: CGFloat
     let cell: (Int) -> Cell
     let center: Center
 
-    init(count: Int, centerHeight: CGFloat = 44, endWidth: CGFloat = 104, @ViewBuilder cell: @escaping (Int) -> Cell, @ViewBuilder center: () -> Center) {
+    init(count: Int, centerHeight: CGFloat = 44, endHeight: CGFloat = 100, @ViewBuilder cell: @escaping (Int) -> Cell, @ViewBuilder center: () -> Center) {
         self.count = count
         self.centerHeight = centerHeight
-        self.endWidth = endWidth
+        self.endHeight = endHeight
         self.cell = cell
         self.center = center()
     }
 
-    private func row(_ ids: [Int], _ h: CGFloat) -> some View {
-        HStack(spacing: 0) {
-            ForEach(ids, id: \.self) { i in
-                cell(i)
-                    .padding(1.5)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: h)
+    private func column(_ ids: [Int], angle: Double) -> some View {
+        GeometryReader { geo in
+            VStack(spacing: 0) {
+                ForEach(ids, id: \.self) { i in
+                    EndFacing(angle: angle) {
+                        cell(i)
+                            .padding(1.5)
+                    }
+                    .frame(height: geo.size.height / CGFloat(max(ids.count, 1)))
+                }
             }
         }
-        .frame(height: h)
     }
 
     var body: some View {
@@ -108,22 +110,18 @@ struct TableView<Cell: View, Center: View>: View {
                     .frame(height: centerHeight)
             }
             GeometryReader { geo in
-                let hasEnd = seats.end != nil
-                let mainW = geo.size.width - (hasEnd ? endWidth + 3 : 0)
-                let rowH = max((geo.size.height - 3) / 2, 40)
-                HStack(spacing: 3) {
-                    VStack(spacing: 3) {
-                        row(seats.top, rowH)
-                            .rotationEffect(.degrees(180))
-                        row(seats.bottom, rowH)
+                let endH: CGFloat = seats.end == nil ? 0 : endHeight
+                let colsH = geo.size.height - endH - (seats.end == nil ? 0 : 3)
+                VStack(spacing: 3) {
+                    HStack(spacing: 3) {
+                        column(seats.left, angle: 90)
+                        column(seats.right, angle: -90)
                     }
-                    .frame(width: mainW)
+                    .frame(height: colsH)
                     if let e = seats.end {
-                        EndFacing(angle: -90) {
-                            cell(e)
-                                .padding(1.5)
-                        }
-                        .frame(width: endWidth, height: geo.size.height)
+                        cell(e)
+                            .padding(1.5)
+                            .frame(height: endH)
                     }
                 }
             }
@@ -266,7 +264,7 @@ struct DrumPad: View {
         TableView(
             count: titles.count,
             centerHeight: fieldNames.count > 1 ? 92 : 50,
-            endWidth: 104,
+            endHeight: 104,
             cell: { i in wheelCell(i, f) },
             center: { centerStrip(f) }
         )
