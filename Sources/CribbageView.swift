@@ -385,7 +385,7 @@ struct CribbageBoardView: View {
             TableView(
                 count: m.names.count,
                 centerHeight: 0,
-                endWidth: 124,
+                endHeight: 110,
                 cell: { i in seat(m, i, cleared: cleared) },
                 center: { EmptyView() }
             )
@@ -393,54 +393,95 @@ struct CribbageBoardView: View {
     }
 
     /// One player's board with their own wheel, upright from where they sit.
+    /// Wide cells put the wheel beside the board; narrow ones put it below (nearest the player).
     private func seat(_ m: GameMatch, _ i: Int, cleared: Bool) -> some View {
-        HStack(spacing: 6) {
-            PegLane(player: i, pegs: m.pegs, cleared: cleared) { p, which, hole in
-                place(p, which, hole)
+        GeometryReader { box in
+            let wide = box.size.width > box.size.height * 1.15
+            Group {
+                if wide {
+                    HStack(spacing: 6) {
+                        lane(m, i, cleared)
+                        if !m.finished {
+                            wheelColumn(m, i, vertical: true)
+                                .frame(width: 62)
+                        }
+                    }
+                } else {
+                    VStack(spacing: 6) {
+                        lane(m, i, cleared)
+                        if !m.finished {
+                            wheelColumn(m, i, vertical: false)
+                                .frame(height: 74)
+                        }
+                    }
+                }
             }
-            if !m.finished {
-                wheelColumn(m, i)
-                    .frame(width: 62)
-            }
+            .padding(5)
+            .frame(width: box.size.width, height: box.size.height)
+            .background(RoundedRectangle(cornerRadius: 12).fill(GC.mantle))
         }
-        .padding(5)
-        .background(RoundedRectangle(cornerRadius: 12).fill(GC.mantle))
     }
 
-    private func wheelColumn(_ m: GameMatch, _ i: Int) -> some View {
+    private func lane(_ m: GameMatch, _ i: Int, _ cleared: Bool) -> some View {
+        PegLane(player: i, pegs: m.pegs, cleared: cleared) { p, which, hole in
+            place(p, which, hole)
+        }
+    }
+
+    private func wheelColumn(_ m: GameMatch, _ i: Int, vertical: Bool) -> some View {
         let front = i < m.pegs.count ? m.pegs[i].front : 0
         let cap = min(29, max(121 - front, 0))
         let amount = Binding<Int>(
             get: { min(max(amounts[i], 1), max(cap, 1)) },
             set: { amounts[i] = $0 }
         )
+        let button = Button {
+            place(i, 0, front + min(amounts[i], cap))
+            amounts[i] = 1
+        } label: {
+            Image(systemName: "arrow.up.circle.fill")
+                .font(.system(size: 26))
+                .foregroundColor(seatColors[i % 8])
+        }
+        .buttonStyle(.plain)
         return GeometryReader { box in
-            let wheelH = min(max(box.size.height - 58, 36), 70)
-            VStack(spacing: 3) {
-                Text(m.names[i])
-                    .font(.caption2.bold())
-                    .foregroundColor(GC.text)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-                if cap >= 1 {
-                    StampWheel(title: "", value: amount, range: 1...cap, width: 56, height: wheelH, seat: i)
-                    Button {
-                        place(i, 0, front + min(amounts[i], cap))
-                        amounts[i] = 1
-                    } label: {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 26))
-                            .foregroundColor(seatColors[i % 8])
+            if vertical {
+                let wheelH = min(max(box.size.height - 58, 36), 70)
+                VStack(spacing: 3) {
+                    Text(m.names[i])
+                        .font(.caption2.bold())
+                        .foregroundColor(GC.text)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                    if cap >= 1 {
+                        StampWheel(title: "", value: amount, range: 1...cap, width: 56, height: wheelH, seat: i)
+                        button
+                    } else {
+                        Text("Home")
+                            .font(.caption.bold())
+                            .foregroundColor(GC.dim)
+                            .frame(height: wheelH)
                     }
-                    .buttonStyle(.plain)
-                } else {
-                    Text("Home")
-                        .font(.caption.bold())
-                        .foregroundColor(GC.dim)
-                        .frame(height: wheelH)
                 }
+                .frame(width: box.size.width, height: box.size.height)
+            } else {
+                HStack(spacing: 8) {
+                    Text(m.names[i])
+                        .font(.caption2.bold())
+                        .foregroundColor(GC.text)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                    if cap >= 1 {
+                        StampWheel(title: "", value: amount, range: 1...cap, width: min(max(box.size.width - 64, 36), 90), height: min(box.size.height, 70), seat: i)
+                        button
+                    } else {
+                        Text("Home")
+                            .font(.caption.bold())
+                            .foregroundColor(GC.dim)
+                    }
+                }
+                .frame(width: box.size.width, height: box.size.height)
             }
-            .frame(width: box.size.width, height: box.size.height)
         }
     }
 
