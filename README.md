@@ -1,0 +1,16 @@
+# Discard (SwiftUI, iOS 17+)
+
+Seven scoreboards: Hearts, Cribbage, High-Low-Jack, War, Spades, Oh Hell, Euchre. 2-8 players each.
+
+## Build in Nyxian
+1. Create a new SwiftUI/Swift project in Nyxian.
+2. Copy every file in `Sources/` into the project's source folder (keep App.swift as the @main entry; delete Nyxian's template @main file).
+3. Use `Info.plist` values if Nyxian's generated plist differs (bundle id, display name).
+4. Build the IPA, sign with Signulous, install with Feather.
+
+Only plain SwiftUI is used: no macros, no third-party packages, no #Preview. APIs newer than iOS 16:
+navigationDestination(item:), onChange with two parameters, topBarTrailing (all iOS 17).
+
+## Notes
+- Data is saved to Documents/cardscores.json.
+- Nothing here has been compiled or run on a device.
