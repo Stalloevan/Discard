@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum MatchOverlay {
-    case menu, winner, delete, dealer
+    case menu, winner, delete
 }
 
 struct MatchView: View {
@@ -20,13 +20,19 @@ struct MatchView: View {
     var body: some View {
         ZStack {
             VStack(spacing: 0) {
-                GCHeader(match?.kind.title ?? "Game") {
-                    HeaderButton(symbol: "book") {
-                        showRules = true
+                if let m = match {
+                    GCHeader(m.kind.title) {
+                        HeaderButton(symbol: "book") {
+                            showRules = true
+                        }
+                        HeaderButton(symbol: "ellipsis.circle") {
+                            overlay = .menu
+                        }
+                    } below: {
+                        ScoreStrip(m: m)
                     }
-                    HeaderButton(symbol: "ellipsis.circle") {
-                        overlay = .menu
-                    }
+                } else {
+                    GCHeader("Game")
                 }
                 ZStack {
                     if let m = match {
@@ -60,7 +66,6 @@ struct MatchView: View {
         switch overlay {
         case .winner: return "Who won?"
         case .delete: return "Delete this game?"
-        case .dealer: return "Who deals?"
         default: return ""
         }
     }
@@ -113,14 +118,6 @@ struct MatchView: View {
                     dismiss()
                 }
             ]
-        case .dealer:
-            return m.names.enumerated().map { item in
-                FlatAction(title: item.element) {
-                    store.mutate(matchID) { mm in
-                        mm.dealer = item.offset
-                    }
-                }
-            }
         case nil:
             return []
         }
@@ -129,8 +126,6 @@ struct MatchView: View {
     @ViewBuilder
     private func content(_ m: GameMatch) -> some View {
         VStack(spacing: 6) {
-            ScoreStrip(m: m)
-            DealerBar(m: m, matchID: matchID, onChangeDealer: { overlay = .dealer })
             banner(m)
             switch m.kind {
             case .cribbage:

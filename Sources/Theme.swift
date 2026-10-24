@@ -260,6 +260,7 @@ struct GCHeader<Trailing: View>: View {
     let title: String
     var showBack: Bool
     let trailing: Trailing
+    var below: AnyView? = nil
     @Environment(\.dismiss) private var dismiss
 
     init(_ title: String, showBack: Bool = true, @ViewBuilder trailing: () -> Trailing) {
@@ -268,7 +269,16 @@ struct GCHeader<Trailing: View>: View {
         self.trailing = trailing()
     }
 
+    /// Header with extra content (the scores) built into the leather under the title row.
+    init<B: View>(_ title: String, showBack: Bool = true, @ViewBuilder trailing: () -> Trailing, @ViewBuilder below: () -> B) {
+        self.title = title
+        self.showBack = showBack
+        self.trailing = trailing()
+        self.below = AnyView(below())
+    }
+
     var body: some View {
+        VStack(spacing: 6) {
         HStack(spacing: 10) {
             if showBack {
                 Button {
@@ -295,6 +305,10 @@ struct GCHeader<Trailing: View>: View {
             Spacer(minLength: 4)
             trailing
                 .foregroundColor(GC.onLeather)
+        }
+        if let below = below {
+            below
+        }
         }
         .padding(.horizontal, 12)
         .padding(.top, 8)

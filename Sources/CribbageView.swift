@@ -1,41 +1,96 @@
 import SwiftUI
 
 // MARK: Board geometry
-// Every player has ONE vertical lane. Only the stretch that can matter is shown: from the lowest
-// peg up to the highest peg + 29 (the best possible hand), scaled to fill the board.
+// Each player has one track that snakes back and forth in as many columns as gives the biggest holes:
+// column 1 runs up, column 2 runs down, column 3 up again, and so on. Only the stretch that can matter is
+// shown: from the lowest peg up to the highest peg + 29 (the best possible hand).
 
-struct BoardGeo {
+struct SnakeGeo {
     let size: CGSize
     let count: Int
     let lo: Int
     let hi: Int
-    let top: CGFloat = 30
-    let bottom: CGFloat = 20
-    let side: CGFloat = 4
+    let top: CGFloat = 20
+    let bottom: CGFloat = 4
+    let side: CGFloat = 2
+    let cols: Int
+    let rows: Int
+
+    init(size: CGSize, count: Int, lo: Int, hi: Int) {
+        self.size = size
+        self.count = count
+        self.lo = lo
+        self.hi = hi
+        let n = max(count, 1)
+        let laneW = (size.width - 4) / CGFloat(n) - 6
+        let h = size.height - 24
+        let total = hi - lo + 1
+        var bestCols = 1
+        var bestScore: CGFloat = 0
+        for c in 1...6 {
+            let r = Int((Double(total) / Double(c)).rounded(.up))
+            let cell = min(laneW / CGFloat(c), h / CGFloat(max(r, 1)))
+            if cell > bestScore + 0.5 {
+                bestScore = cell
+                bestCols = c
+            }
+        }
+        self.cols = bestCols
+        self.rows = Int((Double(total) / Double(bestCols)).rounded(.up))
+    }
 
     var laneWidth: CGFloat {
         return (size.width - 2 * side) / CGFloat(max(count, 1))
     }
 
-    var rowGap: CGFloat {
-        return (size.height - top - bottom) / CGFloat(max(hi - lo, 1))
+    var cellW: CGFloat {
+        return (laneWidth - 6) / CGFloat(cols)
+    }
+
+    var cellH: CGFloat {
+        return (size.height - top - bottom) / CGFloat(max(rows, 1))
+    }
+
+    var cell: CGFloat {
+        return min(cellW, cellH)
+    }
+
+    var pegSize: CGFloat {
+        return min(max(cell * 0.86, 14), 44)
     }
 
     func laneCenter(_ p: Int) -> CGFloat {
         return side + laneWidth * (CGFloat(p) + 0.5)
     }
 
-    func holeY(_ idx: Int) -> CGFloat {
-        return size.height - bottom - CGFloat(idx - lo) * rowGap
-    }
-
     func point(_ p: Int, _ idx: Int) -> CGPoint {
-        return CGPoint(x: laneCenter(p), y: holeY(idx))
+        let off = min(max(idx - lo, 0), hi - lo)
+        let c = off / rows
+        let r = off % rows
+        let x = side + laneWidth * CGFloat(p) + 3 + cellW * (CGFloat(c) + 0.5)
+        let y: CGFloat
+        if c % 2 == 0 {
+            y = size.height - bottom - cellH * (CGFloat(r) + 0.5)
+        } else {
+            y = top + cellH * (CGFloat(r) + 0.5)
+        }
+        return CGPoint(x: x, y: y)
     }
 
-    func hole(forY y: CGFloat) -> Int {
-        let raw = ((size.height - bottom - y) / max(rowGap, 0.1)).rounded()
-        return min(max(lo + Int(raw), lo), hi)
+    func hole(_ p: Int, near pt: CGPoint) -> Int {
+        var best = lo
+        var bestD = CGFloat.greatestFiniteMagnitude
+        for idx in lo...hi {
+            let q = point(p, idx)
+            let dx = q.x - pt.x
+            let dy = q.y - pt.y
+            let d = dx * dx + dy * dy
+            if d < bestD {
+                bestD = d
+                best = idx
+            }
+        }
+        return best
     }
 }
 
@@ -53,20 +108,21 @@ func visibleRange(_ pegs: [Peg]) -> (Int, Int) {
     return (lo, max(hi, lo + 10))
 }
 
-/// The draggable peg (the back peg, the one that leaps ahead). Big enough for a thumb.
+/// A draggable peg. Big enough for a thumb.
 struct PegHandle: View {
     let color: Color
+    let diameter: CGFloat
     let position: CGPoint
-    let selected: Bool
+    let faded: Bool
     let onChange: (CGPoint) -> Void
     let onEnd: (CGPoint) -> Void
 
     var body: some View {
         Circle()
-            .fill(color)
+            .fill(faded ? color.opacity(0.55) : color)
             .overlay(Circle().stroke(GC.base, lineWidth: 3))
-            .frame(width: 36, height: 36)
-            .frame(width: 48, height: 48)
+            .frame(width: diameter, height: diameter)
+            .frame(width: max(diameter + 8, 44), height: max(diameter + 8, 44))
             .contentShape(Circle())
             .position(position)
             .gesture(
@@ -84,18 +140,18 @@ struct PegHandle: View {
 struct PegBoard: View {
     let names: [String]
     let pegs: [Peg]
-    let selected: Int
     let previews: [Int]         // holes each player's wheel would add
-    let onSelect: (Int) -> Void
-    let onPlace: (Int, Int) -> Void
+    /// (player, whichPeg: 0 = back, 1 = front, hole)
+    let onPlace: (Int, Int, Int) -> Void
 
     @State private var dragPlayer: Int? = nil
+    @State private var dragWhich: Int = 0
     @State private var dragHole: Int = 0
 
     var body: some View {
         GeometryReader { geo in
             let range = visibleRange(pegs)
-            let g = BoardGeo(size: geo.size, count: pegs.count, lo: range.0, hi: range.1)
+            let g = SnakeGeo(size: geo.size, count: pegs.count, lo: range.0, hi: range.1)
             ZStack(alignment: .topLeading) {
                 Canvas { ctx, sz in
                     drawBoard(ctx: &ctx, g: g)
@@ -119,92 +175,110 @@ struct PegBoard: View {
         }
     }
 
-    /// Where the draggable (back) peg is drawn.
-    private func movingHole(_ p: Int) -> Int {
-        if dragPlayer == p { return dragHole }
+    private func backShown(_ p: Int) -> Int {
+        if dragPlayer == p && dragWhich == 0 { return dragHole }
         return pegs[p].back
     }
 
-    private func gainBadge(_ p: Int, _ g: BoardGeo) -> some View {
-        let moving = movingHole(p)
-        let front = pegs[p].front
-        let delta = abs(front - moving)
+    private func frontShown(_ p: Int) -> Int {
+        if dragPlayer == p && dragWhich == 1 { return dragHole }
+        return pegs[p].front
+    }
+
+    private func gainBadge(_ p: Int, _ g: SnakeGeo) -> some View {
+        let back = backShown(p)
+        let front = frontShown(p)
+        let delta = abs(front - back)
         let color = seatColors[p % 8]
-        let a = g.point(p, moving)
+        let a = g.point(p, back)
         let b = g.point(p, front)
-        let apart = abs(a.y - b.y)
-        let top = min(a.y, b.y)
-        let y = apart >= 48 ? (a.y + b.y) / 2 : top - 32
+        let apart = hypot(a.x - b.x, a.y - b.y)
+        let big = apart >= g.pegSize * 2.2
+        let upper = a.y < b.y ? a : b
+        let pos = big
+            ? CGPoint(x: (a.x + b.x) / 2, y: (a.y + b.y) / 2)
+            : CGPoint(x: upper.x, y: upper.y - g.pegSize * 0.5 - 12)
         return ZStack {
             if delta > 0 {
                 Text("+\(delta)")
-                    .font(.system(size: 13, weight: .heavy))
+                    .font(.system(size: 12, weight: .heavy))
                     .foregroundColor(GC.base)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
                     .background(Capsule().fill(GC.text))
                     .overlay(Capsule().stroke(color, lineWidth: 2))
-                    .position(x: g.laneCenter(p), y: max(y, 12))
+                    .position(x: pos.x, y: max(pos.y, 10))
             }
         }
         .allowsHitTesting(false)
     }
 
-    private func pegViews(_ p: Int, _ g: BoardGeo) -> some View {
+    private func pegViews(_ p: Int, _ g: SnakeGeo) -> some View {
         let color = seatColors[p % 8]
         let peg = pegs[p]
-        let movePt = g.point(p, movingHole(p))
-        let frontPt = g.point(p, peg.front)
         let add = p < previews.count ? previews[p] : 0
+        let d = g.pegSize
         return ZStack {
-            // Front (leading) peg: plain marker, not draggable
-            Circle()
-                .fill(color.opacity(0.55))
-                .overlay(Circle().stroke(GC.base, lineWidth: 3))
-                .frame(width: 36, height: 36)
-                .position(frontPt)
-                .allowsHitTesting(false)
-            if movingHole(p) != peg.front {
-                Path { path in
-                    path.move(to: movePt)
-                    path.addLine(to: frontPt)
-                }
-                .stroke(color.opacity(0.45), style: StrokeStyle(lineWidth: 8, lineCap: .round))
-                .allowsHitTesting(false)
-            }
             if add > 0 && dragPlayer == nil && peg.front + add <= g.hi {
                 Circle()
                     .strokeBorder(color, style: StrokeStyle(lineWidth: 3, dash: [4, 3]))
-                    .frame(width: 36, height: 36)
+                    .frame(width: d, height: d)
                     .position(g.point(p, peg.front + add))
                     .allowsHitTesting(false)
             }
+            // Front (leading) peg: drag it back to undo a mistaken move
             PegHandle(
                 color: color,
-                position: movePt,
-                selected: selected == p,
+                diameter: d,
+                position: g.point(p, frontShown(p)),
+                faded: true,
                 onChange: { pt in
                     if dragPlayer == nil {
                         dragPlayer = p
-                        onSelect(p)
+                        dragWhich = 1
                     }
-                    dragHole = g.hole(forY: pt.y)
+                    dragHole = g.hole(p, near: pt)
                 },
                 onEnd: { pt in
-                    let h = g.hole(forY: pt.y)
+                    let h = g.hole(p, near: pt)
                     dragPlayer = nil
-                    onPlace(p, h)
+                    onPlace(p, 1, h)
+                }
+            )
+            // Back peg: drag it ahead to leapfrog and score
+            PegHandle(
+                color: color,
+                diameter: d * 0.9,
+                position: g.point(p, backShown(p)),
+                faded: false,
+                onChange: { pt in
+                    if dragPlayer == nil {
+                        dragPlayer = p
+                        dragWhich = 0
+                    }
+                    dragHole = g.hole(p, near: pt)
+                },
+                onEnd: { pt in
+                    let h = g.hole(p, near: pt)
+                    dragPlayer = nil
+                    onPlace(p, 0, h)
                 }
             )
         }
     }
 
-    private func loupe(_ p: Int, _ g: BoardGeo) -> some View {
+    private func loupe(_ p: Int, _ g: SnakeGeo) -> some View {
         let color = seatColors[p % 8]
-        let gain = max(dragHole - pegs[p].front, 0)
-        let note = gain > 0 ? "+\(gain)" : (dragHole == pegs[p].back ? "stay" : "behind")
-        let x = min(max(g.laneCenter(p), 44), g.size.width - 44)
-        let y = max(g.holeY(dragHole) - 64, 28)
+        let peg = pegs[p]
+        let note: String
+        if dragWhich == 0 {
+            note = dragHole > peg.front ? "+\(dragHole - peg.front)" : (dragHole == peg.back ? "stay" : "back peg")
+        } else {
+            note = dragHole < peg.front ? "undo \(peg.front - dragHole)" : (dragHole == peg.front ? "stay" : "+\(dragHole - peg.front)")
+        }
+        let at = g.point(p, dragHole)
+        let x = min(max(at.x, 44), g.size.width - 44)
+        let y = max(at.y - g.pegSize - 34, 28)
         return VStack(spacing: 0) {
             Text("\(dragHole)")
                 .font(.system(size: 24, weight: .heavy, design: .serif))
@@ -213,29 +287,28 @@ struct PegBoard: View {
                 .font(.system(size: 12, weight: .bold))
                 .foregroundColor(GC.base.opacity(0.85))
         }
-        .frame(width: 76, height: 48)
+        .frame(width: 80, height: 48)
         .background(RoundedRectangle(cornerRadius: 12).fill(color))
         .position(x: x, y: y)
         .allowsHitTesting(false)
     }
 
-    private func drawBoard(ctx: inout GraphicsContext, g: BoardGeo) {
+    private func drawBoard(ctx: inout GraphicsContext, g: SnakeGeo) {
         let n = pegs.count
         if n == 0 { return }
-        let dot = min(g.rowGap * 0.3, 3.0)
+        let dot = min(g.cell * 0.09, 3.2)
 
         for p in 0..<n {
             let color = seatColors[p % 8]
             let x0 = g.side + g.laneWidth * CGFloat(p) + 2
-            let rect = CGRect(x: x0, y: g.holeY(g.hi) - 12, width: g.laneWidth - 4, height: g.holeY(g.lo) - g.holeY(g.hi) + 24)
-            let isSel = selected == p
-            ctx.fill(Path(roundedRect: rect, cornerRadius: 10), with: .color(color.opacity(isSel ? 0.28 : 0.16)))
-            ctx.stroke(Path(roundedRect: rect, cornerRadius: 10), with: .color(color.opacity(isSel ? 1.0 : 0.55)), lineWidth: isSel ? 2.5 : 1)
+            let rect = CGRect(x: x0, y: g.top - 4, width: g.laneWidth - 4, height: g.size.height - g.top - g.bottom + 8)
+            ctx.fill(Path(roundedRect: rect, cornerRadius: 10), with: .color(color.opacity(0.16)))
+            ctx.stroke(Path(roundedRect: rect, cornerRadius: 10), with: .color(color.opacity(0.6)), lineWidth: 1)
 
-            let label = Text(String(names[p].prefix(4)))
+            let label = Text(String(names[p].prefix(5)))
                 .font(.system(size: 12, weight: .heavy, design: .serif))
                 .foregroundColor(GC.text)
-            ctx.draw(label, at: CGPoint(x: g.laneCenter(p), y: max(g.holeY(g.hi) - 22, 10)))
+            ctx.draw(label, at: CGPoint(x: g.laneCenter(p), y: 9))
 
             for idx in g.lo...g.hi {
                 let pt = g.point(p, idx)
@@ -246,11 +319,11 @@ struct PegBoard: View {
                 var c: Color = five ? GC.dim : GC.overlay
                 if special { c = GC.red }
                 ctx.fill(Path(ellipseIn: dotRect), with: .color(c))
-                if five && p == 0 {
+                if (five || idx == g.lo) && g.cell >= 18 {
                     let t = Text("\(idx)")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundColor(GC.dim)
-                    ctx.draw(t, at: CGPoint(x: 8, y: pt.y))
+                    ctx.draw(t, at: CGPoint(x: pt.x, y: pt.y + g.cell * 0.34))
                 }
             }
         }
@@ -260,7 +333,6 @@ struct PegBoard: View {
 struct CribbageBoardView: View {
     let matchID: UUID
     @EnvironmentObject var store: Store
-    @State private var selected = 0
     @State private var amounts: [Int] = Array(repeating: 1, count: 8)
 
     private var match: GameMatch? {
@@ -273,12 +345,9 @@ struct CribbageBoardView: View {
                 PegBoard(
                     names: m.names,
                     pegs: m.pegs,
-                    selected: min(selected, max(m.names.count - 1, 0)),
                     previews: m.finished ? [] : Array(amounts.prefix(m.names.count)),
-                    onSelect: { p in selected = p },
-                    onPlace: { p, hole in
-                        selected = p
-                        place(p, hole)
+                    onPlace: { p, which, hole in
+                        place(p, which, hole)
                     }
                 )
                 if !m.finished {
@@ -311,8 +380,7 @@ struct CribbageBoardView: View {
                 StampWheel(title: "", value: amount, range: 1...cap, width: nil, height: 70, seat: i)
                     .padding(.horizontal, 2)
                 Button {
-                    selected = i
-                    place(i, front + min(amounts[i], cap))
+                    place(i, 0, front + min(amounts[i], cap))
                     amounts[i] = 1
                 } label: {
                     Image(systemName: "arrow.up.circle.fill")
@@ -329,20 +397,41 @@ struct CribbageBoardView: View {
         }
     }
 
-    /// Dragging the back peg to a hole ahead of the front peg leapfrogs it (the old front becomes the back).
-    /// Dropping it at or behind the front peg just moves the back peg.
-    private func place(_ u: Int, _ hole: Int) {
+    /// which == 0 (back peg): a hole ahead of the front peg leapfrogs it; otherwise it just moves the back peg.
+    /// which == 1 (front peg): dragging it back undoes a move (restoring the old back peg when it can);
+    /// dragging it forward just corrects the front peg.
+    private func place(_ u: Int, _ which: Int, _ hole: Int) {
         store.mutate(matchID) { m in
             if m.finished { return }
             if u >= m.pegs.count { return }
             var p = m.pegs[u]
-            if hole > p.front {
-                p.back = p.front
-                p.front = hole
-            } else if hole != p.back {
-                p.back = hole
+            if which == 0 {
+                if hole > p.front {
+                    p.back = p.front
+                    p.front = hole
+                } else if hole != p.back {
+                    p.back = hole
+                } else {
+                    return
+                }
             } else {
-                return
+                if hole == p.front { return }
+                if hole < p.front {
+                    var restored = false
+                    for old in m.pegHistory.reversed() where u < old.count {
+                        if old[u].front == hole {
+                            p = old[u]
+                            restored = true
+                            break
+                        }
+                    }
+                    if !restored {
+                        p.front = hole
+                        if p.back > hole { p.back = hole }
+                    }
+                } else {
+                    p.front = hole
+                }
             }
             m.pegHistory.append(m.pegs)
             if m.pegHistory.count > 60 {

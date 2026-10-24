@@ -121,7 +121,6 @@ struct GameHomeView: View {
 
     @State private var count = 4
     @State private var names: [String] = Array(repeating: "", count: 8)
-    @State private var dealer = 0
     @State private var target: Int
     @State private var started: UUID? = nil
     @State private var showRules = false
@@ -225,10 +224,6 @@ struct GameHomeView: View {
                         .panel()
 
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("First dealer")
-                                .font(.subheadline.bold())
-                                .foregroundColor(GC.text)
-                            ChoiceChips(items: (0..<count).map { display($0) }, selection: $dealer, columns: min(count, 4))
                             targetControl
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -253,9 +248,6 @@ struct GameHomeView: View {
         }
         .navigationDestination(item: $started) { id in
             MatchView(matchID: id)
-        }
-        .onChange(of: count) { _, newValue in
-            if dealer >= newValue { dealer = 0 }
         }
     }
 
@@ -302,6 +294,6 @@ struct GameHomeView: View {
             }
             resolved.append(candidate)
         }
-        started = store.startMatch(kind: kind, names: resolved, dealer: dealer, target: target)
+        started = store.startMatch(kind: kind, names: resolved, dealer: 0, target: target)
     }
 }

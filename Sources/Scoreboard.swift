@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// One scoreboard used by every game: a stitched leather plate with a score tile per player or team.
+/// The scores, built into the leather header: one tile per player or team.
 struct ScoreStrip: View {
     let m: GameMatch
     @EnvironmentObject var store: Store
@@ -9,18 +9,15 @@ struct ScoreStrip: View {
         let n = max(m.units.count, 1)
         let leaders = m.leaders
         GeometryReader { geo in
-            let cell = (geo.size.width - 24) / CGFloat(n)
+            let cell = geo.size.width / CGFloat(n)
             HStack(alignment: .top, spacing: 0) {
                 ForEach(0..<m.units.count, id: \.self) { i in
                     cellView(i, cell: cell, leaders: leaders)
                         .frame(width: cell)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.top, 10)
         }
-        .frame(height: 104)
-        .background(LeatherBackground(corner: 18))
+        .frame(height: 78)
     }
 
     private func extraLine(_ i: Int) -> String {
@@ -38,41 +35,30 @@ struct ScoreStrip: View {
     private func cellView(_ i: Int, cell: CGFloat, leaders: [Int]) -> some View {
         let u = m.units[i]
         let isLeader = leaders.contains(i) && leaders.count < m.units.count
-        let hasDealer = u.members.contains(m.dealer)
         let extra = extraLine(i)
-        let tileW = max(cell - 8, 30)
+        let tileW = max(cell - 6, 28)
         let color = seatColors[i % 8]
         return VStack(spacing: 2) {
-            ZStack(alignment: .topTrailing) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(GC.base)
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(color.opacity(0.22))
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(isLeader ? GC.yellow : color, lineWidth: isLeader ? 3.5 : 1.5)
-                    Text("\(m.total(i))")
-                        .font(.system(size: min(30, tileW * 0.46), weight: .heavy, design: .serif))
-                        .foregroundColor(GC.text)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.5)
-                        .padding(.horizontal, 3)
-                }
-                .frame(width: tileW, height: 46)
-                if hasDealer {
-                    Image(systemName: "rectangle.stack.fill")
-                        .font(.system(size: 9))
-                        .foregroundColor(GC.text)
-                        .padding(4)
-                        .background(Circle().fill(GC.yellow))
-                        .offset(x: 3, y: -5)
-                }
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(GC.base)
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(color.opacity(0.22))
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(isLeader ? GC.yellow : color, lineWidth: isLeader ? 3.5 : 1.5)
+                Text("\(m.total(i))")
+                    .font(.system(size: min(26, tileW * 0.44), weight: .heavy, design: .serif))
+                    .foregroundColor(GC.text)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+                    .padding(.horizontal, 3)
             }
-            Text(u.name)
+            .frame(width: tileW, height: 40)
+            Text(extra.isEmpty ? u.name : "\(u.name) · \(extra)")
                 .font(.caption.bold())
                 .foregroundColor(GC.onLeather)
                 .lineLimit(1)
-                .minimumScaleFactor(0.6)
+                .minimumScaleFactor(0.55)
             if !u.subtitle.isEmpty {
                 Text(u.subtitle)
                     .font(.caption2)
@@ -80,58 +66,6 @@ struct ScoreStrip: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
             }
-            if !extra.isEmpty {
-                Text(extra)
-                    .font(.caption2)
-                    .foregroundColor(GC.onLeather)
-                    .lineLimit(1)
-            }
         }
-    }
-}
-
-struct DealerBar: View {
-    let m: GameMatch
-    let matchID: UUID
-    var onChangeDealer: () -> Void = {}
-    @EnvironmentObject var store: Store
-
-    var body: some View {
-        let name = m.dealer < m.names.count ? m.names[m.dealer] : ""
-        HStack(spacing: 8) {
-            Image(systemName: "rectangle.stack.fill")
-                .foregroundColor(GC.yellow)
-            Text("Dealer")
-                .foregroundColor(GC.dim)
-            Text(name)
-                .bold()
-                .foregroundColor(GC.text)
-                .lineLimit(1)
-            if m.kind == .cribbage {
-                Text("· crib \(GameRules.cribSize(m.names.count))")
-                    .font(.caption)
-                    .foregroundColor(GC.dim)
-            }
-            Spacer()
-            Button {
-                onChangeDealer()
-            } label: {
-                Image(systemName: "person.crop.circle")
-                    .font(.title3)
-                    .foregroundColor(GC.text)
-                    .frame(width: 34, height: 30)
-            }
-            .buttonStyle(.plain)
-            Button("Next") {
-                store.mutate(matchID) { mm in
-                    mm.dealer = (mm.dealer + 1) % mm.names.count
-                }
-            }
-            .buttonStyle(GlossButtonStyle(compact: true))
-        }
-        .font(.subheadline)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 5)
-        .background(Capsule().fill(GC.mantle))
     }
 }
