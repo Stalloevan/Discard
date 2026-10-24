@@ -14,3 +14,7 @@ navigationDestination(item:), onChange with two parameters, topBarTrailing (all 
 ## Notes
 - Data is saved to Documents/cardscores.json.
 - Nothing here has been compiled or run on a device.
+
+## Credits
+App icon: artwork from [Icons8](https://icons8.com) when available at build time, otherwise the MIT-licensed
+[Bootstrap Icons](https://icons.getbootstrap.com) spade. The release notes record which one was used.

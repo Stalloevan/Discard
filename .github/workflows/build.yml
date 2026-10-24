@@ -15,6 +15,32 @@ jobs:
       - name: Read version
         id: ver
         run: echo "version=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
+      - name: Fetch app icon
+        id: icon
+        run: |
+          mkdir -p icon
+          brew install imagemagick librsvg >/dev/null 2>&1 || true
+          src=""
+          bg="#F4EFE3"
+          for url in \
+            "https://img.icons8.com/fluency/1024/spades.png" \
+            "https://img.icons8.com/color/1024/spades.png" \
+            "https://img.icons8.com/fluency/1024/playing-cards.png" \
+            "https://img.icons8.com/color/1024/playing-cards.png"; do
+            if curl -fsSL -m 30 -A "Mozilla/5.0" -o icon/raw.png "$url" && magick identify icon/raw.png >/dev/null 2>&1; then
+              src="Icons8 (icons8.com), $url"
+              break
+            fi
+          done
+          if [ -z "$src" ]; then
+            curl -fsSL -m 30 -o icon/spade.svg "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/icons/suit-spade-fill.svg"
+            sed -i '' 's/currentColor/white/g' icon/spade.svg
+            rsvg-convert -w 1024 -h 1024 icon/spade.svg -o icon/raw.png
+            src="Bootstrap Icons suit-spade-fill (MIT), getbootstrap.com"
+            bg="#0B4D2E"
+          fi
+          magick -size 1024x1024 "xc:$bg" \( icon/raw.png -resize 640x640 \) -gravity center -composite -alpha off Sources/Assets.xcassets/AppIcon.appiconset/icon-1024.png
+          echo "source=$src" >> "$GITHUB_OUTPUT"
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate project
@@ -36,5 +62,5 @@ jobs:
           gh release create "v${{ steps.ver.outputs.version }}" \
             "Discard-v${{ steps.ver.outputs.version }}.ipa" \
             --title "Discard v${{ steps.ver.outputs.version }}" \
-            --notes "Unsigned IPA. Sign with Signulous and install with Feather." \
+            --notes "Unsigned IPA. Sign with Signulous and install with Feather. App icon: ${{ steps.icon.outputs.source }}" \
             --target "${{ github.sha }}"
