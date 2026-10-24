@@ -42,7 +42,7 @@ struct RulesView: View {
                 }
                 .pickerStyle(.segmented)
             }
-            .listRowBackground(Color.black.opacity(0.3))
+            .listRowBackground(Color.black.opacity(0.26))
 
             Section("Setup for \(count) players") {
                 LabeledContent("Decks", value: setup.decks)
@@ -53,7 +53,7 @@ struct RulesView: View {
                         .font(.subheadline)
                 }
             }
-            .listRowBackground(Color.black.opacity(0.3))
+            .listRowBackground(Color.black.opacity(0.26))
 
             Section("All player counts") {
                 ForEach(kind.minPlayers...8, id: \.self) { n in
@@ -69,7 +69,7 @@ struct RulesView: View {
                     }
                 }
             }
-            .listRowBackground(Color.black.opacity(0.3))
+            .listRowBackground(Color.black.opacity(0.26))
 
             ForEach(GameRules.overview(kind)) { section in
                 Section(section.title) {
@@ -78,13 +78,12 @@ struct RulesView: View {
                             .font(.subheadline)
                     }
                 }
-                .listRowBackground(Color.black.opacity(0.3))
+                .listRowBackground(Color.black.opacity(0.26))
             }
         }
         .scrollContentBackground(.hidden)
         .background(FeltBackground())
-        .navigationTitle("\(kind.title) rules")
-        .navigationBarTitleDisplayMode(.inline)
+        .gcTitle("\(kind.title) rules")
         .gcNavigation()
     }
 }
@@ -121,7 +120,7 @@ struct StatsView: View {
                     }
                 }
             }
-            .listRowBackground(Color.black.opacity(0.3))
+            .listRowBackground(Color.black.opacity(0.26))
 
             Section("Finished games") {
                 if finished.isEmpty {
@@ -147,12 +146,11 @@ struct StatsView: View {
                     }
                 }
             }
-            .listRowBackground(Color.black.opacity(0.3))
+            .listRowBackground(Color.black.opacity(0.26))
         }
         .scrollContentBackground(.hidden)
         .background(FeltBackground())
-        .navigationTitle("Games won")
-        .navigationBarTitleDisplayMode(.inline)
+        .gcTitle("Games won")
         .gcNavigation()
     }
 }

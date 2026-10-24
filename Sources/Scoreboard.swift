@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// One scoreboard used by every game: a row of glossy score bubbles.
+/// One scoreboard used by every game: a stitched leather plate with a score tile per player or team.
 struct ScoreStrip: View {
     let m: GameMatch
     @EnvironmentObject var store: Store
@@ -9,16 +9,18 @@ struct ScoreStrip: View {
         let n = max(m.units.count, 1)
         let leaders = m.leaders
         GeometryReader { geo in
-            let cell = geo.size.width / CGFloat(n)
-            let bubble = min(72, max(38, cell - 8))
+            let cell = (geo.size.width - 24) / CGFloat(n)
             HStack(alignment: .top, spacing: 0) {
                 ForEach(0..<m.units.count, id: \.self) { i in
-                    cellView(i, bubble: bubble, leaders: leaders)
+                    cellView(i, cell: cell, leaders: leaders)
                         .frame(width: cell)
                 }
             }
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
         }
-        .frame(height: 128)
+        .frame(height: 124)
+        .background(LeatherBackground(corner: 18))
     }
 
     private func extraLine(_ i: Int) -> String {
@@ -33,30 +35,38 @@ struct ScoreStrip: View {
         return ""
     }
 
-    private func cellView(_ i: Int, bubble: CGFloat, leaders: [Int]) -> some View {
+    private func cellView(_ i: Int, cell: CGFloat, leaders: [Int]) -> some View {
         let u = m.units[i]
         let isLeader = leaders.contains(i) && leaders.count < m.units.count
         let hasDealer = u.members.contains(m.dealer)
         let extra = extraLine(i)
+        let tileW = max(cell - 8, 30)
+        let color = seatColors[i % 8]
         return VStack(spacing: 2) {
             ZStack(alignment: .topTrailing) {
-                Bubble(color: seatColors[i % 8], size: bubble) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(LinearGradient(colors: [color.opacity(0.9), color.opacity(0.7)], startPoint: .top, endPoint: .bottom))
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(LinearGradient(colors: [Color.white.opacity(0.3), Color.clear], startPoint: .top, endPoint: .center))
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(isLeader ? GC.gold : Color.white.opacity(0.35), lineWidth: isLeader ? 3 : 1)
                     Text("\(m.total(i))")
-                        .font(.system(size: bubble * 0.38, weight: .heavy, design: .rounded))
+                        .font(.system(size: min(30, tileW * 0.46), weight: .heavy, design: .serif))
                         .foregroundColor(.white)
                         .lineLimit(1)
                         .minimumScaleFactor(0.5)
-                        .padding(.horizontal, 4)
-                        .shadow(color: Color.black.opacity(0.5), radius: 1, x: 0, y: 1)
+                        .shadow(color: Color.black.opacity(0.5), radius: 0, x: 0, y: 1.5)
+                        .padding(.horizontal, 3)
                 }
-                .overlay(Circle().stroke(isLeader ? GC.gold : Color.clear, lineWidth: 3))
+                .frame(width: tileW, height: 56)
                 if hasDealer {
                     Image(systemName: "rectangle.stack.fill")
                         .font(.system(size: 9))
                         .foregroundColor(.black)
                         .padding(4)
                         .background(Circle().fill(GC.gold))
-                        .offset(x: 4, y: -4)
+                        .offset(x: 3, y: -5)
                 }
             }
             Text(u.name)
@@ -126,7 +136,7 @@ struct DealerBar: View {
         .font(.subheadline)
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(Capsule().fill(Color.black.opacity(0.35)))
-        .overlay(Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1))
+        .background(Capsule().fill(Color.black.opacity(0.28)))
+        .overlay(Capsule().stroke(Color.white.opacity(0.16), lineWidth: 1))
     }
 }

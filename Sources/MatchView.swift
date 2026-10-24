@@ -24,8 +24,7 @@ struct MatchView: View {
                     .foregroundColor(.white)
             }
         }
-        .navigationTitle(match?.kind.title ?? "Game")
-        .navigationBarTitleDisplayMode(.inline)
+        .gcTitle(match?.kind.title ?? "Game")
         .gcNavigation()
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -99,13 +98,17 @@ struct MatchView: View {
                     .panel()
                     .frame(maxHeight: .infinity)
             case .war:
-                WarPanel(matchID: matchID)
-                    .panel()
-                Spacer(minLength: 0)
+                ScrollView {
+                    WarPanel(matchID: matchID)
+                        .panel()
+                }
+                .scrollBounceBehavior(.basedOnSize)
             default:
-                RoundPanel(matchID: matchID)
-                    .panel()
-                Spacer(minLength: 0)
+                ScrollView {
+                    RoundPanel(matchID: matchID)
+                        .panel()
+                }
+                .scrollBounceBehavior(.basedOnSize)
             }
         }
         .padding(.horizontal, 12)
@@ -155,7 +158,7 @@ struct MatchView: View {
                 Button("Declare winner") {
                     store.finish(matchID, winners: w)
                 }
-                .buttonStyle(GlossButtonStyle(tint: Color.orange, compact: true))
+                .buttonStyle(GlossButtonStyle(tint: Color(red: 0.75, green: 0.50, blue: 0.10), compact: true))
             }
             .panel()
         }
@@ -218,8 +221,7 @@ struct HistorySheet: View {
                 }
             }
             .background(FeltBackground())
-            .navigationTitle("Round history")
-            .navigationBarTitleDisplayMode(.inline)
+            .gcTitle("Round history")
             .gcNavigation()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

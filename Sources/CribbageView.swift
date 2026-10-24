@@ -1,83 +1,90 @@
 import SwiftUI
 
-// MARK: Vertical board geometry
+// MARK: Board geometry
+// Every player has one track of two vertical lanes: holes 0-60 run up the left lane,
+// holes 61-121 run back down the right lane. The whole board always fits on screen.
 
-/// Each player's 121 holes run in three vertical lanes (up, down, up) like a real board.
-func pegSegment(_ idx: Int) -> Int {
-    if idx <= 40 { return 0 }
-    if idx <= 81 { return 1 }
-    return 2
+func laneOf(_ idx: Int) -> Int {
+    return idx <= 60 ? 0 : 1
 }
 
-let boardRowGap: CGFloat = 24
-let boardLaneWidth: CGFloat = 76
-let boardTop: CGFloat = 30
-let boardBottom: CGFloat = 26
-let boardSide: CGFloat = 20
-
-func boardSize(players n: Int, viewWidth: CGFloat) -> CGSize {
-    let w = max(viewWidth, CGFloat(n) * boardLaneWidth + 2 * boardSide)
-    let h = boardTop + boardBottom + 40 * boardRowGap
-    return CGSize(width: w, height: h)
-}
+let boardSide: CGFloat = 22
+let boardTop: CGFloat = 34
+let boardBottom: CGFloat = 34
 
 func vHolePoint(player: Int, idx: Int, size: CGSize, count n: Int) -> CGPoint {
-    let seg = pegSegment(idx)
-    var row = 0
-    if seg == 0 {
-        row = idx
-    } else if seg == 1 {
-        row = 40 - (idx - 41)
-    } else {
-        row = idx - 82
-    }
+    let lane = laneOf(idx)
+    let row = lane == 0 ? idx : 60 - (idx - 61)
     let gw = (size.width - 2 * boardSide) / CGFloat(max(n, 1))
-    let cs = min(gw / 3.2, 24)
+    let cs = min(gw * 0.5, 34)
     let cx = boardSide + gw * (CGFloat(player) + 0.5)
-    let dy = (size.height - boardTop - boardBottom) / 40
-    return CGPoint(x: cx + CGFloat(seg - 1) * cs, y: size.height - boardBottom - CGFloat(row) * dy)
+    let dy = (size.height - boardTop - boardBottom) / 60
+    let x = cx + (lane == 0 ? -cs / 2 : cs / 2)
+    return CGPoint(x: x, y: size.height - boardBottom - CGFloat(row) * dy)
 }
 
 struct VerticalPegBoard: View {
     let names: [String]
     let pegs: [Peg]
-    let viewWidth: CGFloat
-    let focusPlayer: Int
-    let focusHole: Int
     let onPlace: (Int, Int) -> Void
 
+    @State private var dragPlayer: Int? = nil
+    @State private var dragHole: Int = 0
+    @State private var dragPoint: CGPoint = .zero
+
     var body: some View {
-        let n = pegs.count
-        let size = boardSize(players: n, viewWidth: viewWidth)
-        let fp = vHolePoint(player: min(focusPlayer, max(n - 1, 0)), idx: focusHole, size: size, count: n)
-        ScrollViewReader { proxy in
-            ScrollView([.horizontal, .vertical], showsIndicators: true) {
-                ZStack(alignment: .topLeading) {
-                    Canvas { ctx, sz in
-                        drawBoard(ctx: &ctx, size: sz)
+        GeometryReader { geo in
+            Canvas { ctx, size in
+                drawBoard(ctx: &ctx, size: size)
+            }
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        track(value.location, size: geo.size)
                     }
-                    .frame(width: size.width, height: size.height)
-                    .contentShape(Rectangle())
-                    .gesture(
-                        SpatialTapGesture().onEnded { value in
-                            handleTap(value.location, size: size)
+                    .onEnded { value in
+                        track(value.location, size: geo.size)
+                        if let p = dragPlayer {
+                            onPlace(p, dragHole)
                         }
-                    )
-                    Color.clear
-                        .frame(width: 2, height: 2)
-                        .padding(.leading, fp.x)
-                        .padding(.top, fp.y)
-                        .id("pegfocus")
-                        .allowsHitTesting(false)
-                }
-                .frame(width: size.width, height: size.height)
+                        dragPlayer = nil
+                    }
+            )
+        }
+    }
+
+    private func nearestPlayer(_ x: CGFloat, size: CGSize) -> Int {
+        let n = max(pegs.count, 1)
+        let gw = (size.width - 2 * boardSide) / CGFloat(n)
+        let raw = Int(((x - boardSide) / gw).rounded(.down))
+        return min(max(raw, 0), n - 1)
+    }
+
+    private func nearestHole(_ p: Int, _ pt: CGPoint, size: CGSize) -> Int {
+        var best = 0
+        var bestD = CGFloat.greatestFiniteMagnitude
+        for idx in 0...121 {
+            let h = vHolePoint(player: p, idx: idx, size: size, count: pegs.count)
+            let dx = h.x - pt.x
+            let dy = h.y - pt.y
+            let d = dx * dx + dy * dy
+            if d < bestD {
+                bestD = d
+                best = idx
             }
-            .defaultScrollAnchor(.bottom)
-            .onChange(of: focusPlayer * 1000 + focusHole) { _, _ in
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    proxy.scrollTo("pegfocus", anchor: .center)
-                }
-            }
+        }
+        return best
+    }
+
+    private func track(_ pt: CGPoint, size: CGSize) {
+        if pegs.isEmpty { return }
+        if dragPlayer == nil {
+            dragPlayer = nearestPlayer(pt.x, size: size)
+        }
+        if let p = dragPlayer {
+            dragHole = nearestHole(p, pt, size: size)
+            dragPoint = pt
         }
     }
 
@@ -85,52 +92,47 @@ struct VerticalPegBoard: View {
         let n = pegs.count
         if n == 0 { return }
 
-        // Lanes, initials top and bottom
+        // Lanes and initials
         for p in 0..<n {
             let color = seatColors[p % 8]
-            let bottomPt = vHolePoint(player: p, idx: 0, size: size, count: n)
-            let topPt = vHolePoint(player: p, idx: 40, size: size, count: n)
-            let rightPt = vHolePoint(player: p, idx: 82, size: size, count: n)
-            let rect = CGRect(
-                x: bottomPt.x - 12,
-                y: topPt.y - 12,
-                width: (rightPt.x - bottomPt.x) + 24,
-                height: (bottomPt.y - topPt.y) + 24
-            )
-            ctx.fill(Path(roundedRect: rect, cornerRadius: 12), with: .color(color.opacity(0.18)))
-            let cx = (bottomPt.x + rightPt.x) / 2
+            let a = vHolePoint(player: p, idx: 0, size: size, count: n)
+            let b = vHolePoint(player: p, idx: 121, size: size, count: n)
+            let topY = vHolePoint(player: p, idx: 60, size: size, count: n).y
+            let rect = CGRect(x: a.x - 12, y: topY - 12, width: (b.x - a.x) + 24, height: (a.y - topY) + 24)
+            ctx.fill(Path(roundedRect: rect, cornerRadius: 12), with: .color(color.opacity(0.2)))
+            ctx.stroke(Path(roundedRect: rect, cornerRadius: 12), with: .color(color.opacity(0.6)), lineWidth: 1)
+            let cx = (a.x + b.x) / 2
             let initials = String(names[p].prefix(3))
-            let top = Text(initials)
-                .font(.system(size: 13, weight: .bold))
+            let label = Text(initials)
+                .font(.system(size: 13, weight: .heavy, design: .serif))
                 .foregroundColor(color)
-            ctx.draw(top, at: CGPoint(x: cx, y: topPt.y - 22))
-            let bottom = Text(initials)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(color)
-            ctx.draw(bottom, at: CGPoint(x: cx, y: bottomPt.y + 20))
+            ctx.draw(label, at: CGPoint(x: cx, y: topY - 24))
+            ctx.draw(label, at: CGPoint(x: cx, y: a.y + 24))
         }
 
         // Holes
         for p in 0..<n {
+            let sel = dragPlayer == p
             for idx in 0...121 {
                 let pt = vHolePoint(player: p, idx: idx, size: size, count: n)
                 let special = idx == 61 || idx == 91 || idx == 121
-                let r: CGFloat = special ? 5 : 3.5
+                let r: CGFloat = special ? 3.2 : (idx % 5 == 0 ? 2.6 : 1.9)
                 let rect = CGRect(x: pt.x - r, y: pt.y - r, width: 2 * r, height: 2 * r)
-                let color: Color = special ? Color.red : Color.white.opacity(0.45)
+                var color: Color = Color.white.opacity(sel ? 0.7 : 0.42)
+                if special { color = Color.red }
                 ctx.fill(Path(ellipseIn: rect), with: .color(color))
             }
         }
 
-        // Scale labels on the outer edges
-        for k in [10, 20, 30, 40] {
+        // Scale along the outer edges (every 10)
+        for k in stride(from: 10, through: 60, by: 10) {
             let y = vHolePoint(player: 0, idx: k, size: size, count: n).y
-            let t = Text("\(k)").font(.system(size: 10)).foregroundColor(GC.dim)
+            let t = Text("\(k)").font(.system(size: 9)).foregroundColor(GC.dim)
             ctx.draw(t, at: CGPoint(x: 9, y: y))
         }
-        for k in [90, 100, 110, 120] {
+        for k in stride(from: 70, through: 120, by: 10) {
             let y = vHolePoint(player: 0, idx: k, size: size, count: n).y
-            let t = Text("\(k)").font(.system(size: 10)).foregroundColor(GC.dim)
+            let t = Text("\(k)").font(.system(size: 9)).foregroundColor(GC.dim)
             ctx.draw(t, at: CGPoint(x: size.width - 11, y: y))
         }
 
@@ -142,18 +144,18 @@ struct VerticalPegBoard: View {
             let pf = vHolePoint(player: p, idx: peg.front, size: size, count: n)
             let pb = vHolePoint(player: p, idx: peg.back, size: size, count: n)
             let color = seatColors[p % 8]
-            if pegSegment(peg.front) == pegSegment(peg.back) {
+            if laneOf(peg.front) == laneOf(peg.back) {
                 var line = Path()
                 line.move(to: pb)
                 line.addLine(to: pf)
-                ctx.stroke(line, with: .color(color.opacity(0.75)), lineWidth: 4)
+                ctx.stroke(line, with: .color(color.opacity(0.8)), lineWidth: 4)
             }
-            let mid = CGPoint(x: (pf.x + pb.x) / 2 + 22, y: (pf.y + pb.y) / 2)
-            let badge = CGRect(x: mid.x - 17, y: mid.y - 10, width: 34, height: 20)
-            ctx.fill(Path(roundedRect: badge, cornerRadius: 10), with: .color(color))
-            ctx.stroke(Path(roundedRect: badge, cornerRadius: 10), with: .color(Color.white), lineWidth: 1.5)
+            let mid = CGPoint(x: (pf.x + pb.x) / 2, y: (pf.y + pb.y) / 2)
+            let badge = CGRect(x: mid.x - 15, y: mid.y - 9, width: 30, height: 18)
+            ctx.fill(Path(roundedRect: badge, cornerRadius: 9), with: .color(color))
+            ctx.stroke(Path(roundedRect: badge, cornerRadius: 9), with: .color(Color.white), lineWidth: 1.5)
             let text = Text("+\(delta)")
-                .font(.system(size: 13, weight: .bold))
+                .font(.system(size: 11, weight: .heavy))
                 .foregroundColor(Color.white)
             ctx.draw(text, at: mid)
         }
@@ -165,39 +167,40 @@ struct VerticalPegBoard: View {
             let pf = vHolePoint(player: p, idx: peg.front, size: size, count: n)
             let pb = vHolePoint(player: p, idx: peg.back, size: size, count: n)
             if peg.back != peg.front {
-                let br: CGFloat = 7.5
+                let br: CGFloat = 4.5
                 let brect = CGRect(x: pb.x - br, y: pb.y - br, width: 2 * br, height: 2 * br)
-                ctx.fill(Path(ellipseIn: brect), with: .color(color.opacity(0.55)))
-                ctx.stroke(Path(ellipseIn: brect), with: .color(Color.white), lineWidth: 1.5)
+                ctx.fill(Path(ellipseIn: brect), with: .color(color.opacity(0.6)))
+                ctx.stroke(Path(ellipseIn: brect), with: .color(Color.white), lineWidth: 1)
             }
-            let fr: CGFloat = 10
+            let fr: CGFloat = 6.5
             let frect = CGRect(x: pf.x - fr, y: pf.y - fr, width: 2 * fr, height: 2 * fr)
             ctx.fill(Path(ellipseIn: frect), with: .color(color))
-            ctx.stroke(Path(ellipseIn: frect), with: .color(Color.white), lineWidth: 2)
+            ctx.stroke(Path(ellipseIn: frect), with: .color(Color.white), lineWidth: 1.5)
         }
-    }
 
-    private func handleTap(_ pt: CGPoint, size: CGSize) {
-        let n = pegs.count
-        if n == 0 { return }
-        var bestP = 0
-        var bestIdx = 0
-        var bestD = CGFloat.greatestFiniteMagnitude
-        for p in 0..<n {
-            for idx in 0...121 {
-                let h = vHolePoint(player: p, idx: idx, size: size, count: n)
-                let dx = h.x - pt.x
-                let dy = h.y - pt.y
-                let d = dx * dx + dy * dy
-                if d < bestD {
-                    bestD = d
-                    bestP = p
-                    bestIdx = idx
-                }
-            }
-        }
-        if bestD < 40 * 40 {
-            onPlace(bestP, bestIdx)
+        // While dragging: ghost ring on the hole and a loupe above the finger
+        if let p = dragPlayer, p < n {
+            let color = seatColors[p % 8]
+            let h = vHolePoint(player: p, idx: dragHole, size: size, count: n)
+            let ring = CGRect(x: h.x - 9, y: h.y - 9, width: 18, height: 18)
+            ctx.stroke(Path(ellipseIn: ring), with: .color(Color.white), lineWidth: 2.5)
+            ctx.stroke(Path(ellipseIn: ring.insetBy(dx: 3, dy: 3)), with: .color(color), lineWidth: 2)
+
+            let gain = max(dragHole - pegs[p].front, 0)
+            let loupeX = min(max(dragPoint.x, 44), size.width - 44)
+            let loupeY = max(dragPoint.y - 64, 26)
+            let loupe = CGRect(x: loupeX - 36, y: loupeY - 22, width: 72, height: 44)
+            ctx.fill(Path(roundedRect: loupe, cornerRadius: 12), with: .color(Color.black.opacity(0.85)))
+            ctx.stroke(Path(roundedRect: loupe, cornerRadius: 12), with: .color(color), lineWidth: 2.5)
+            let big = Text("\(dragHole)")
+                .font(.system(size: 22, weight: .heavy, design: .serif))
+                .foregroundColor(Color.white)
+            ctx.draw(big, at: CGPoint(x: loupeX, y: loupeY - 5))
+            let note = gain > 0 ? "+\(gain)" : (dragHole == pegs[p].front ? "stay" : "back")
+            let small = Text(note)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(GC.gold)
+            ctx.draw(small, at: CGPoint(x: loupeX, y: loupeY + 13))
         }
     }
 }
@@ -207,7 +210,6 @@ struct CribbageBoardView: View {
     @EnvironmentObject var store: Store
     @State private var selected = 0
     @State private var amount = 1
-    @State private var focusHole = 0
 
     private var match: GameMatch? {
         return store.matches.first { $0.id == matchID }
@@ -215,19 +217,10 @@ struct CribbageBoardView: View {
 
     var body: some View {
         if let m = match {
-            VStack(spacing: 6) {
-                GeometryReader { geo in
-                    VerticalPegBoard(
-                        names: m.names,
-                        pegs: m.pegs,
-                        viewWidth: geo.size.width,
-                        focusPlayer: selected,
-                        focusHole: focusHole
-                    ) { p, hole in
-                        selected = p
-                        focusHole = hole
-                        place(p, hole)
-                    }
+            VStack(spacing: 8) {
+                VerticalPegBoard(names: m.names, pegs: m.pegs) { p, hole in
+                    selected = p
+                    place(p, hole)
                 }
                 if !m.finished {
                     controls(m)
@@ -259,14 +252,13 @@ struct CribbageBoardView: View {
                 .font(.subheadline)
                 .foregroundColor(.white)
                 .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Capsule().fill(Color.white.opacity(0.15)))
+                .padding(.vertical, 8)
+                .background(Capsule().fill(Color.black.opacity(0.3)))
+                .overlay(Capsule().stroke(seatColors[sel % 8], lineWidth: 1.5))
             }
-            StampWheel(title: "", value: $amount, range: 1...29, width: 60, height: 78)
+            StampWheel(title: "", value: $amount, range: 1...29, width: 70, height: 76)
             Button("Peg +\(amount)") {
-                let target = min(front + amount, 121)
-                focusHole = target
-                place(sel, target)
+                place(sel, min(front + amount, 121))
             }
             .buttonStyle(GlossButtonStyle(compact: true))
             Spacer(minLength: 0)

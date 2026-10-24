@@ -12,25 +12,25 @@ struct ContentView: View {
             ZStack {
                 FeltBackground()
                 ScrollView {
-                    VStack(spacing: 16) {
+                    VStack(spacing: 18) {
+                        banner
+
                         LazyVGrid(
                             columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
-                            spacing: 14
+                            spacing: 16
                         ) {
                             ForEach(GameKind.allCases) { kind in
                                 NavigationLink(value: kind) {
-                                    VStack(spacing: 6) {
-                                        Bubble(color: kind.color, size: 84) {
-                                            Image(systemName: kind.symbol)
-                                                .font(.system(size: 32))
-                                                .foregroundColor(.white)
-                                                .shadow(color: Color.black.opacity(0.4), radius: 1, x: 0, y: 1)
-                                        }
+                                    VStack(spacing: 5) {
+                                        GameTile(kind: kind, size: 80)
                                         Text(kind.title)
                                             .font(.subheadline.bold())
                                             .foregroundColor(.white)
                                             .lineLimit(1)
                                             .minimumScaleFactor(0.7)
+                                        Text(kind.playersText)
+                                            .font(.caption2)
+                                            .foregroundColor(GC.dim)
                                     }
                                 }
                                 .buttonStyle(.plain)
@@ -38,18 +38,15 @@ struct ContentView: View {
                         }
 
                         if !active.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("In progress")
-                                    .font(.headline)
-                                    .foregroundColor(.white)
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("IN PROGRESS")
+                                    .font(.system(size: 13, weight: .heavy, design: .serif))
+                                    .tracking(1.5)
+                                    .foregroundColor(GC.gold)
                                 ForEach(active) { m in
                                     NavigationLink(value: m.id) {
                                         HStack(spacing: 10) {
-                                            Bubble(color: m.kind.color, size: 38) {
-                                                Image(systemName: m.kind.symbol)
-                                                    .font(.system(size: 16))
-                                                    .foregroundColor(.white)
-                                            }
+                                            GameTile(kind: m.kind, size: 40)
                                             VStack(alignment: .leading, spacing: 1) {
                                                 Text(m.kind.title)
                                                     .font(.subheadline.bold())
@@ -81,8 +78,7 @@ struct ContentView: View {
                     .padding(16)
                 }
             }
-            .navigationTitle("Card Scores")
-            .navigationBarTitleDisplayMode(.inline)
+            .gcTitle("Discard")
             .gcNavigation()
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -101,6 +97,22 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(.dark)
+    }
+
+    private var banner: some View {
+        HStack(spacing: 14) {
+            LogoTile(size: 66)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("DISCARD")
+                    .embossed(36)
+                Text("Deal. Score. Win.")
+                    .font(.subheadline)
+                    .foregroundColor(GC.dim)
+            }
+            Spacer()
+        }
+        .padding(16)
+        .background(LeatherBackground(corner: 20))
     }
 }
 
@@ -138,33 +150,65 @@ struct GameHomeView: View {
         return "Teams: " + parts.joined(separator: "  vs  ")
     }
 
+    private var countChoices: [Int] {
+        return Array(kind.minPlayers...8)
+    }
+
     var body: some View {
         ZStack {
             FeltBackground()
             ScrollView {
-                VStack(spacing: 12) {
-                    VStack(spacing: 8) {
+                VStack(spacing: 14) {
+                    HStack(spacing: 14) {
+                        GameTile(kind: kind, size: 62)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(kind.title.uppercased())
+                                .embossed(26)
+                            Text(kind.blurb)
+                                .font(.caption)
+                                .foregroundColor(GC.dim)
+                        }
+                        Spacer()
+                    }
+                    .padding(14)
+                    .background(LeatherBackground(corner: 18))
+
+                    VStack(spacing: 10) {
                         HStack {
-                            Text("Players")
-                                .font(.headline)
+                            Text("How many players?")
+                                .font(.subheadline.bold())
                                 .foregroundColor(.white)
                             Spacer()
                         }
-                        Picker("Number of players", selection: $count) {
-                            ForEach(kind.minPlayers...8, id: \.self) { n in
-                                Text("\(n)").tag(n)
+                        HStack(spacing: 6) {
+                            ForEach(countChoices, id: \.self) { n in
+                                Text("\(n)")
+                                    .font(.system(size: 18, weight: .heavy, design: .serif))
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .fill(n == count ? GC.button : Color.black.opacity(0.28))
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(n == count ? GC.gold : Color.white.opacity(0.15), lineWidth: n == count ? 2 : 1)
+                                    )
+                                    .onTapGesture {
+                                        count = n
+                                    }
                             }
                         }
-                        .pickerStyle(.segmented)
 
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                             ForEach(0..<count, id: \.self) { i in
                                 HStack(spacing: 8) {
-                                    Bubble(color: seatColors[i], size: 26) {
-                                        Text("\(i + 1)")
-                                            .font(.caption.bold())
-                                            .foregroundColor(.white)
-                                    }
+                                    Text("\(i + 1)")
+                                        .font(.system(size: 13, weight: .heavy, design: .serif))
+                                        .foregroundColor(.white)
+                                        .frame(width: 24, height: 24)
+                                        .background(Circle().fill(seatColors[i]))
                                     TextField(
                                         "",
                                         text: $names[i],
@@ -175,7 +219,7 @@ struct GameHomeView: View {
                                     .autocorrectionDisabled()
                                 }
                                 .padding(6)
-                                .background(Capsule().fill(Color.black.opacity(0.3)))
+                                .background(RoundedRectangle(cornerRadius: 10).fill(Color.black.opacity(0.28)))
                             }
                         }
 
@@ -209,13 +253,12 @@ struct GameHomeView: View {
                         Label("Start game", systemImage: "play.fill")
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(GlossButtonStyle(tint: Color.green))
+                    .buttonStyle(GlossButtonStyle())
                 }
                 .padding(16)
             }
         }
-        .navigationTitle(kind.title)
-        .navigationBarTitleDisplayMode(.inline)
+        .gcTitle(kind.title)
         .gcNavigation()
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

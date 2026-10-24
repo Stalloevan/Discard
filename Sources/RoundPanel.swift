@@ -70,59 +70,32 @@ struct RoundPanel: View {
     }
 }
 
-// MARK: Helpers
-
-/// A binding that never lets a group of values add up to more than `cap`.
-func cappedBinding(_ values: Binding<[Int]>, _ i: Int, cap: Int) -> Binding<Int> {
-    return Binding<Int>(
-        get: { i < values.wrappedValue.count ? values.wrappedValue[i] : 0 },
-        set: { newValue in
-            var arr = values.wrappedValue
-            if i >= arr.count { return }
-            var others = 0
-            for (j, v) in arr.enumerated() where j != i {
-                others += v
-            }
-            arr[i] = max(0, min(newValue, cap - others))
-            values.wrappedValue = arr
-        }
-    )
-}
-
-func remainingRange(_ values: [Int], _ i: Int, cap: Int) -> ClosedRange<Int> {
-    var others = 0
-    for (j, v) in values.enumerated() where j != i {
-        others += v
-    }
-    return 0...max(0, cap - others)
-}
-
 // MARK: Hearts
 
 struct HeartsEntry: View {
     let match: GameMatch
     let onSave: (ScoreRound) -> Void
-    @State private var values: [Int]
+    @State private var values: [[Int]]
 
     init(match: GameMatch, onSave: @escaping (ScoreRound) -> Void) {
         self.match = match
         self.onSave = onSave
-        _values = State(initialValue: Array(repeating: 0, count: match.units.count))
+        _values = State(initialValue: [Array(repeating: 0, count: match.units.count)])
     }
 
     private var sum: Int {
-        return values.reduce(0, +)
+        return values[0].reduce(0, +)
     }
 
     private var shooter: Int? {
-        return values.firstIndex(of: 26)
+        return values[0].firstIndex(of: 26)
     }
 
     var body: some View {
         let n = match.units.count
         VStack(spacing: 8) {
             HStack {
-                Text("Points taken")
+                Text("Points taken this hand")
                     .font(.subheadline)
                     .foregroundColor(GC.dim)
                 Spacer()
@@ -131,22 +104,21 @@ struct HeartsEntry: View {
                     .foregroundColor(sum == 26 ? Color.green : GC.gold)
                     .monospacedDigit()
             }
-            WheelRow(
+            DrumPad(
                 titles: match.units.map { $0.name },
-                values: (0..<n).map { i in cappedBinding($values, i, cap: 26) },
-                ranges: (0..<n).map { i in remainingRange(values, i, cap: 26) }
+                fieldNames: ["Points"],
+                values: $values,
+                ranges: { _, u in remainingRange(values[0], u, cap: 26) },
+                summary: { u in "\(values[0][u])" },
+                info: { _ in
+                    if let s = shooter {
+                        return "\(match.units[s].name) took all 26: shot the moon, everyone else scores 26."
+                    }
+                    return "One player taking all 26 shoots the moon."
+                }
             )
-            if let s = shooter {
-                Text("\(match.units[s].name) took all 26 and shot the moon: everyone else scores 26.")
-                    .font(.caption)
-                    .foregroundColor(GC.gold)
-            } else {
-                Text("The hand always totals 26. One player taking all 26 shoots the moon.")
-                    .font(.caption)
-                    .foregroundColor(GC.dim)
-            }
             Button("Save round") {
-                var scores = values
+                var scores = values[0]
                 var detail = ""
                 if let s = shooter {
                     scores = []
@@ -170,19 +142,13 @@ struct HeartsEntry: View {
 struct SpadesEntry: View {
     let match: GameMatch
     let onSave: (ScoreRound) -> Void
-    @State private var bid: [Int]
-    @State private var tricks: [Int]
-    @State private var nilMade: [Int]
-    @State private var nilFailed: [Int]
+    @State private var values: [[Int]]   // bid, tricks, nil made, nil failed
 
     init(match: GameMatch, onSave: @escaping (ScoreRound) -> Void) {
         self.match = match
         self.onSave = onSave
         let n = match.units.count
-        _bid = State(initialValue: Array(repeating: 0, count: n))
-        _tricks = State(initialValue: Array(repeating: 0, count: n))
-        _nilMade = State(initialValue: Array(repeating: 0, count: n))
-        _nilFailed = State(initialValue: Array(repeating: 0, count: n))
+        _values = State(initialValue: Array(repeating: Array(repeating: 0, count: n), count: 4))
     }
 
     private var hand: Int {
@@ -190,15 +156,17 @@ struct SpadesEntry: View {
     }
 
     private var tricksTotal: Int {
-        return tricks.reduce(0, +)
+        return values[1].reduce(0, +)
     }
 
     private func compute(_ i: Int) -> (pts: Int, bags: Int) {
-        let b = bid[i]
-        let t = tricks[i]
+        let b = values[0][i]
+        let t = values[1][i]
+        let nm = values[2][i]
+        let nf = values[3][i]
         var pts = 0
         var bags = 0
-        let nilUsed = nilMade[i] + nilFailed[i] > 0
+        let nilUsed = nm + nf > 0
         if b > 0 {
             if t >= b {
                 pts += 10 * b + (t - b)
@@ -210,16 +178,26 @@ struct SpadesEntry: View {
             pts += t
             bags = t
         }
-        pts += 100 * nilMade[i]
-        pts -= 100 * nilFailed[i]
+        pts += 100 * nm
+        pts -= 100 * nf
         return (pts, bags)
     }
 
+    private func range(_ f: Int, _ u: Int) -> ClosedRange<Int> {
+        let members = max(1, match.units[u].members.count)
+        switch f {
+        case 0: return 0...hand
+        case 1: return remainingRange(values[1], u, cap: hand)
+        case 2: return 0...max(0, members - values[3][u])
+        default: return 0...max(0, members - values[2][u])
+        }
+    }
+
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 8) {
             HStack {
-                Text(match.units.count > 1 ? "Swipe for each side" : "")
-                    .font(.caption)
+                Text("Bid, tricks taken, nils")
+                    .font(.subheadline)
                     .foregroundColor(GC.dim)
                 Spacer()
                 Text("Tricks \(tricksTotal) / \(hand)")
@@ -227,47 +205,23 @@ struct SpadesEntry: View {
                     .foregroundColor(tricksTotal == hand ? Color.green : GC.gold)
                     .monospacedDigit()
             }
-            TabView {
-                ForEach(0..<match.units.count, id: \.self) { i in
-                    page(i)
-                        .tag(i)
+            DrumPad(
+                titles: match.units.map { $0.name },
+                fieldNames: ["Bid", "Tricks", "Nil made", "Nil failed"],
+                values: $values,
+                ranges: { f, u in range(f, u) },
+                summary: { u in "\(values[0][u]) / \(values[1][u])" },
+                info: { u in
+                    let c = compute(u)
+                    return "\(match.units[u].name): hand \(signed(c.pts)), new bags +\(c.bags)"
                 }
-            }
-            .tabViewStyle(.page(indexDisplayMode: .always))
-            .indexViewStyle(.page(backgroundDisplayMode: .never))
-            .frame(height: 200)
+            )
             Button("Save round") {
                 save()
             }
             .buttonStyle(GlossButtonStyle())
             .disabled(tricksTotal != hand)
         }
-    }
-
-    private func page(_ i: Int) -> some View {
-        let c = compute(i)
-        let members = max(1, match.units[i].members.count)
-        let nilMadeRange = 0...max(0, members - nilFailed[i])
-        let nilFailedRange = 0...max(0, members - nilMade[i])
-        return VStack(spacing: 2) {
-            HStack {
-                Text(match.units[i].name)
-                    .font(.subheadline.bold())
-                    .foregroundColor(.white)
-                Spacer()
-                Text("\(signed(c.pts)) · bags +\(c.bags)")
-                    .font(.caption)
-                    .foregroundColor(GC.dim)
-            }
-            HStack(spacing: 6) {
-                WheelColumn(title: "Bid", value: $bid[i], range: 0...hand)
-                WheelColumn(title: "Tricks", value: cappedBinding($tricks, i, cap: hand), range: remainingRange(tricks, i, cap: hand))
-                WheelColumn(title: "Nil made", value: $nilMade[i], range: nilMadeRange)
-                WheelColumn(title: "Nil failed", value: $nilFailed[i], range: nilFailedRange)
-            }
-            .frame(maxWidth: .infinity)
-        }
-        .padding(.bottom, 22)
     }
 
     private func save() {
@@ -285,7 +239,7 @@ struct SpadesEntry: View {
             }
             scores.append(c.pts + penalty)
             extra.append(b - prior)
-            var d = "\(match.units[i].name): bid \(bid[i]), took \(tricks[i])"
+            var d = "\(match.units[i].name): bid \(values[0][i]), took \(values[1][i])"
             if penalty < 0 { d += ", bag penalty" }
             detail.append(d)
         }
@@ -301,16 +255,13 @@ struct SpadesEntry: View {
 struct OhHellEntry: View {
     let match: GameMatch
     let onSave: (ScoreRound) -> Void
-    @State private var bid: [Int]
-    @State private var took: [Int]
-    @State private var page = 0
+    @State private var values: [[Int]]   // bid, tricks won
 
     init(match: GameMatch, onSave: @escaping (ScoreRound) -> Void) {
         self.match = match
         self.onSave = onSave
         let n = match.units.count
-        _bid = State(initialValue: Array(repeating: 0, count: n))
-        _took = State(initialValue: Array(repeating: 0, count: n))
+        _values = State(initialValue: Array(repeating: Array(repeating: 0, count: n), count: 2))
     }
 
     private var hand: Int {
@@ -319,37 +270,40 @@ struct OhHellEntry: View {
 
     var body: some View {
         let n = match.units.count
-        let bidSum = bid.reduce(0, +)
-        let tookSum = took.reduce(0, +)
+        let bidSum = values[0].reduce(0, +)
+        let tookSum = values[1].reduce(0, +)
         VStack(spacing: 8) {
-            Picker("Entry", selection: $page) {
-                Text("Bids").tag(0)
-                Text("Tricks won").tag(1)
-            }
-            .pickerStyle(.segmented)
-            if page == 0 {
-                WheelRow(
-                    titles: match.units.map { $0.name },
-                    values: (0..<n).map { i in $bid[i] },
-                    range: 0...hand
-                )
-                Text("Bids add to \(bidSum)" + (bidSum == hand ? ". The total can't equal \(hand), so change a bid." : ""))
-                    .font(.caption)
+            HStack {
+                Text("Bids \(bidSum)")
+                    .font(.subheadline.bold())
                     .foregroundColor(bidSum == hand ? Color.red : GC.dim)
-            } else {
-                WheelRow(
-                    titles: match.units.map { $0.name },
-                    values: (0..<n).map { i in cappedBinding($took, i, cap: hand) },
-                    ranges: (0..<n).map { i in remainingRange(took, i, cap: hand) }
-                )
-                Text("Tricks entered: \(tookSum) of \(hand)")
-                    .font(.caption)
+                    .monospacedDigit()
+                Spacer()
+                Text("Tricks \(tookSum) / \(hand)")
+                    .font(.subheadline.bold())
                     .foregroundColor(tookSum == hand ? Color.green : GC.gold)
+                    .monospacedDigit()
             }
+            DrumPad(
+                titles: match.units.map { $0.name },
+                fieldNames: ["Bid", "Tricks won"],
+                values: $values,
+                ranges: { f, u in
+                    if f == 0 { return 0...hand }
+                    return remainingRange(values[1], u, cap: hand)
+                },
+                summary: { u in "\(values[0][u]) / \(values[1][u])" },
+                info: { _ in
+                    if bidSum == hand {
+                        return "Bids can't add up to \(hand). Change one."
+                    }
+                    return "Bids / tricks won"
+                }
+            )
             Button("Save round") {
                 var scores: [Int] = []
                 for i in 0..<n {
-                    scores.append(bid[i] == took[i] ? 10 + bid[i] : 0)
+                    scores.append(values[0][i] == values[1][i] ? 10 + values[0][i] : 0)
                 }
                 var r = ScoreRound(scores: scores)
                 r.detail = "\(hand) cards"
@@ -370,10 +324,10 @@ struct EuchreEntry: View {
     @State private var outcome = 0
 
     private let outcomes: [String] = [
-        "Made +1",
+        "Made it +1",
         "March +2",
-        "Alone +4",
-        "Euchre +2"
+        "Alone march +4",
+        "Euchred: others +2"
     ]
 
     init(match: GameMatch, onSave: @escaping (ScoreRound) -> Void) {
@@ -382,23 +336,15 @@ struct EuchreEntry: View {
     }
 
     var body: some View {
-        VStack(spacing: 8) {
-            HStack(alignment: .top, spacing: 10) {
-                StampDrum(
-                    title: "Called trump",
-                    labels: match.units.map { $0.name },
-                    selection: $maker,
-                    width: nil,
-                    height: 112
-                )
-                StampDrum(
-                    title: "Result (euchre: other side scores)",
-                    labels: outcomes,
-                    selection: $outcome,
-                    width: nil,
-                    height: 112
-                )
-            }
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Who called trump?")
+                .font(.subheadline)
+                .foregroundColor(GC.dim)
+            ChoiceChips(items: match.units.map { $0.name }, selection: $maker, columns: 4)
+            Text("Result")
+                .font(.subheadline)
+                .foregroundColor(GC.dim)
+            ChoiceChips(items: outcomes, selection: $outcome, columns: 2)
             Button("Save round") {
                 var scores: [Int] = Array(repeating: 0, count: match.units.count)
                 if outcome == 3 {
@@ -414,6 +360,7 @@ struct EuchreEntry: View {
                 onSave(r)
             }
             .buttonStyle(GlossButtonStyle())
+            .frame(maxWidth: .infinity)
         }
     }
 }
@@ -424,22 +371,21 @@ struct HLJEntry: View {
     let match: GameMatch
     let onSave: (ScoreRound) -> Void
     @State private var bidder = 0
-    @State private var bid = 1
-    @State private var pts: [Int]
+    @State private var bid = 0          // index into 1...4
+    @State private var values: [[Int]]
     @State private var page = 0
 
     init(match: GameMatch, onSave: @escaping (ScoreRound) -> Void) {
         self.match = match
         self.onSave = onSave
-        _pts = State(initialValue: Array(repeating: 0, count: match.units.count))
+        _values = State(initialValue: [Array(repeating: 0, count: match.units.count)])
     }
 
     private var sum: Int {
-        return pts.reduce(0, +)
+        return values[0].reduce(0, +)
     }
 
     var body: some View {
-        let n = match.units.count
         VStack(spacing: 8) {
             Picker("Entry", selection: $page) {
                 Text("Bid").tag(0)
@@ -447,32 +393,42 @@ struct HLJEntry: View {
             }
             .pickerStyle(.segmented)
             if page == 0 {
-                HStack(alignment: .top, spacing: 10) {
-                    StampDrum(
-                        title: "Bidder",
-                        labels: match.units.map { $0.name },
-                        selection: $bidder,
-                        width: nil,
-                        height: 112
-                    )
-                    StampWheel(title: "Bid", value: $bid, range: 1...4, width: nil, height: 112)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Who bid?")
+                        .font(.subheadline)
+                        .foregroundColor(GC.dim)
+                    ChoiceChips(items: match.units.map { $0.name }, selection: $bidder, columns: 4)
+                    Text("Bid")
+                        .font(.subheadline)
+                        .foregroundColor(GC.dim)
+                    ChoiceChips(items: ["1", "2", "3", "4"], selection: $bid, columns: 4)
                 }
             } else {
-                WheelRow(
+                HStack {
+                    Text("High, Low, Jack, Game")
+                        .font(.subheadline)
+                        .foregroundColor(GC.dim)
+                    Spacer()
+                    Text("\(sum) of 4")
+                        .font(.subheadline.bold())
+                        .foregroundColor(GC.gold)
+                        .monospacedDigit()
+                }
+                DrumPad(
                     titles: match.units.map { $0.name },
-                    values: (0..<n).map { i in cappedBinding($pts, i, cap: 4) },
-                    ranges: (0..<n).map { i in remainingRange(pts, i, cap: 4) }
+                    fieldNames: ["Points"],
+                    values: $values,
+                    ranges: { _, u in remainingRange(values[0], u, cap: 4) },
+                    summary: { u in "\(values[0][u])" }
                 )
-                Text("High, Low, Jack, Game: \(sum) of 4")
-                    .font(.caption)
-                    .foregroundColor(GC.dim)
             }
             Button("Save round") {
-                var scores = pts
-                var detail = "\(match.units[bidder].name) bid \(bid) and made it"
-                if pts[bidder] < bid {
-                    scores[bidder] = -bid
-                    detail = "\(match.units[bidder].name) bid \(bid) and was set"
+                var scores = values[0]
+                let amount = bid + 1
+                var detail = "\(match.units[bidder].name) bid \(amount) and made it"
+                if scores[bidder] < amount {
+                    scores[bidder] = -amount
+                    detail = "\(match.units[bidder].name) bid \(amount) and was set"
                 }
                 var r = ScoreRound(scores: scores)
                 r.detail = detail
