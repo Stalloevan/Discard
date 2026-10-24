@@ -4,6 +4,11 @@ import SwiftUI
 struct ScoreStrip: View {
     let m: GameMatch
     @EnvironmentObject var store: Store
+    @Environment(\.verticalSizeClass) private var vSize
+
+    private var compact: Bool {
+        return vSize == .compact
+    }
 
     var body: some View {
         let n = max(m.units.count, 1)
@@ -17,7 +22,7 @@ struct ScoreStrip: View {
                 }
             }
         }
-        .frame(height: 70)
+        .frame(height: compact ? 56 : 70)
     }
 
     private func extraLine(_ i: Int) -> String {
@@ -47,13 +52,13 @@ struct ScoreStrip: View {
                 RoundedRectangle(cornerRadius: 10)
                     .strokeBorder(isLeader ? GC.yellow : color, lineWidth: isLeader ? 3.5 : 1.5)
                 Text("\(m.total(i))")
-                    .font(.system(size: min(26, tileW * 0.44), weight: .heavy, design: .serif))
+                    .font(.system(size: min(compact ? 20 : 26, tileW * 0.44), weight: .heavy, design: .serif))
                     .foregroundColor(GC.text)
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
                     .padding(.horizontal, 3)
             }
-            .frame(width: tileW, height: 40)
+            .frame(width: tileW, height: compact ? 30 : 40)
             Text(extra.isEmpty ? u.name : "\(u.name) · \(extra)")
                 .font(.caption.bold())
                 .foregroundColor(GC.onLeather)

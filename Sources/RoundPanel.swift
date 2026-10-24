@@ -11,17 +11,18 @@ struct RoundPanel: View {
 
     var body: some View {
         if let m = match {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
                 header(m)
                 if m.finished {
                     Text("Game over.")
-                        .foregroundColor(GC.dim)
+                        .foregroundColor(GC.onFeltDim)
                 } else if m.kind == .ohHell && m.currentHand == nil {
                     Text("All rounds played.")
-                        .foregroundColor(GC.dim)
+                        .foregroundColor(GC.onFeltDim)
                 } else {
                     entry(m)
                         .id(m.rounds.count)
+                        .frame(maxHeight: .infinity)
                 }
             }
         }
@@ -39,11 +40,11 @@ struct RoundPanel: View {
         return HStack {
             Text(title)
                 .font(.headline)
-                .foregroundColor(GC.text)
+                .foregroundColor(GC.onFelt)
             Spacer()
             Text(sub)
                 .font(.subheadline)
-                .foregroundColor(GC.dim)
+                .foregroundColor(GC.onFeltDim)
         }
     }
 
@@ -93,31 +94,23 @@ struct HeartsEntry: View {
 
     var body: some View {
         let n = match.units.count
-        VStack(spacing: 8) {
-            HStack {
-                Text("Points taken this hand")
-                    .font(.subheadline)
-                    .foregroundColor(GC.dim)
-                Spacer()
-                Text(sum == 26 ? "26 / 26" : "\(26 - sum) left to enter")
-                    .font(.subheadline.bold())
-                    .foregroundColor(sum == 26 ? GC.green : GC.dim)
-                    .monospacedDigit()
-            }
-            DrumPad(
-                titles: match.units.map { $0.name },
-                fieldNames: ["Points"],
-                values: $values,
-                ranges: { _, u in remainingRange(values[0], u, cap: 26) },
-                summary: { u in "\(values[0][u])" },
-                info: { _ in
-                    if let s = shooter {
-                        return "\(match.units[s].name) took all 26: shot the moon, everyone else scores 26."
-                    }
-                    return "One player taking all 26 shoots the moon."
+        DrumPad(
+            titles: match.units.map { $0.name },
+            fieldNames: ["Points"],
+            values: $values,
+            ranges: { _, u in remainingRange(values[0], u, cap: 26) },
+            summary: { u in "\(values[0][u])" },
+            info: { _ in
+                if let s = shooter {
+                    return "\(match.units[s].name) took all 26: shot the moon, everyone else scores 26."
                 }
-            )
-            Button("Save round") {
+                return "Points taken this hand. One player taking all 26 shoots the moon."
+            },
+            status: sum == 26 ? "26 / 26" : "\(26 - sum) left",
+            statusColor: sum == 26 ? GC.green : GC.dim,
+            actionTitle: "Save round",
+            actionEnabled: sum == 26,
+            action: {
                 var scores = values[0]
                 var detail = ""
                 if let s = shooter {
@@ -131,9 +124,7 @@ struct HeartsEntry: View {
                 r.detail = detail
                 onSave(r)
             }
-            .buttonStyle(GlossButtonStyle())
-            .disabled(sum != 26)
-        }
+        )
     }
 }
 
@@ -194,38 +185,26 @@ struct SpadesEntry: View {
     }
 
     var body: some View {
-        VStack(spacing: 8) {
-            HStack {
-                Text("Bid, tricks taken, nils")
-                    .font(.subheadline)
-                    .foregroundColor(GC.dim)
-                Spacer()
-                Text("Tricks \(tricksTotal) / \(hand)")
-                    .font(.subheadline.bold())
-                    .foregroundColor(tricksTotal == hand ? GC.green : GC.dim)
-                    .monospacedDigit()
-            }
-            DrumPad(
-                titles: match.units.map { $0.name },
-                fieldNames: ["Bid", "Tricks", "Nil made", "Nil failed"],
-                values: $values,
-                ranges: { f, u in range(f, u) },
-                summary: { u in "\(values[0][u]) / \(values[1][u])" },
-                info: { _ in
-                    var parts: [String] = []
-                    for u in 0..<match.units.count {
-                        let c = compute(u)
-                        parts.append("\(match.units[u].name) \(signed(c.pts)) (bags +\(c.bags))")
-                    }
-                    return parts.joined(separator: "  ·  ")
+        DrumPad(
+            titles: match.units.map { $0.name },
+            fieldNames: ["Bid", "Tricks", "Nil made", "Nil failed"],
+            values: $values,
+            ranges: { f, u in range(f, u) },
+            summary: { u in "\(values[0][u]) / \(values[1][u])" },
+            info: { _ in
+                var parts: [String] = []
+                for u in 0..<match.units.count {
+                    let c = compute(u)
+                    parts.append("\(match.units[u].name) \(signed(c.pts))")
                 }
-            )
-            Button("Save round") {
-                save()
-            }
-            .buttonStyle(GlossButtonStyle())
-            .disabled(tricksTotal != hand)
-        }
+                return parts.joined(separator: " · ")
+            },
+            status: "Tricks \(tricksTotal)/\(hand)",
+            statusColor: tricksTotal == hand ? GC.green : GC.dim,
+            actionTitle: "Save round",
+            actionEnabled: tricksTotal == hand,
+            action: { save() }
+        )
     }
 
     private func save() {
@@ -276,35 +255,26 @@ struct OhHellEntry: View {
         let n = match.units.count
         let bidSum = values[0].reduce(0, +)
         let tookSum = values[1].reduce(0, +)
-        VStack(spacing: 8) {
-            HStack {
-                Text("Bids \(bidSum)")
-                    .font(.subheadline.bold())
-                    .foregroundColor(bidSum == hand ? GC.red : GC.dim)
-                    .monospacedDigit()
-                Spacer()
-                Text("Tricks \(tookSum) / \(hand)")
-                    .font(.subheadline.bold())
-                    .foregroundColor(tookSum == hand ? GC.green : GC.dim)
-                    .monospacedDigit()
-            }
-            DrumPad(
-                titles: match.units.map { $0.name },
-                fieldNames: ["Bid", "Tricks won"],
-                values: $values,
-                ranges: { f, u in
-                    if f == 0 { return 0...hand }
-                    return remainingRange(values[1], u, cap: hand)
-                },
-                summary: { u in "\(values[0][u]) / \(values[1][u])" },
-                info: { _ in
-                    if bidSum == hand {
-                        return "Bids can't add up to \(hand). Change one."
-                    }
-                    return "Bids / tricks won"
+        DrumPad(
+            titles: match.units.map { $0.name },
+            fieldNames: ["Bid", "Tricks won"],
+            values: $values,
+            ranges: { f, u in
+                if f == 0 { return 0...hand }
+                return remainingRange(values[1], u, cap: hand)
+            },
+            summary: { u in "\(values[0][u]) / \(values[1][u])" },
+            info: { _ in
+                if bidSum == hand {
+                    return "Bids can't add up to \(hand). Change one."
                 }
-            )
-            Button("Save round") {
+                return "Bids \(bidSum)"
+            },
+            status: "Tricks \(tookSum)/\(hand)",
+            statusColor: tookSum == hand ? GC.green : GC.dim,
+            actionTitle: "Save round",
+            actionEnabled: tookSum == hand && bidSum != hand,
+            action: {
                 var scores: [Int] = []
                 for i in 0..<n {
                     scores.append(values[0][i] == values[1][i] ? 10 + values[0][i] : 0)
@@ -313,9 +283,7 @@ struct OhHellEntry: View {
                 r.detail = "\(hand) cards"
                 onSave(r)
             }
-            .buttonStyle(GlossButtonStyle())
-            .disabled(tookSum != hand || bidSum == hand)
-        }
+        )
     }
 }
 
@@ -343,11 +311,11 @@ struct EuchreEntry: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Who called trump?")
                 .font(.subheadline)
-                .foregroundColor(GC.dim)
+                .foregroundColor(GC.onFeltDim)
             ChoiceChips(items: match.units.map { $0.name }, selection: $maker, columns: 4)
             Text("Result")
                 .font(.subheadline)
-                .foregroundColor(GC.dim)
+                .foregroundColor(GC.onFeltDim)
             ChoiceChips(items: outcomes, selection: $outcome, columns: 2)
             Button("Save round") {
                 var scores: [Int] = Array(repeating: 0, count: match.units.count)
@@ -389,52 +357,54 @@ struct HLJEntry: View {
         return values[0].reduce(0, +)
     }
 
+    private func saveRound() {
+        var scores = values[0]
+        let amount = bid + 1
+        var detail = "\(match.units[bidder].name) bid \(amount) and made it"
+        if scores[bidder] < amount {
+            scores[bidder] = -amount
+            detail = "\(match.units[bidder].name) bid \(amount) and was set"
+        }
+        var r = ScoreRound(scores: scores)
+        r.detail = detail
+        onSave(r)
+    }
+
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             ChoiceChips(items: ["Bid", "Points won"], selection: $page, columns: 2)
+                .frame(maxWidth: 320)
             if page == 0 {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text("Who bid?")
                         .font(.subheadline)
-                        .foregroundColor(GC.dim)
+                        .foregroundColor(GC.onFeltDim)
                     ChoiceChips(items: match.units.map { $0.name }, selection: $bidder, columns: 4)
                     Text("Bid")
                         .font(.subheadline)
-                        .foregroundColor(GC.dim)
+                        .foregroundColor(GC.onFeltDim)
                     ChoiceChips(items: ["1", "2", "3", "4"], selection: $bid, columns: 4)
+                    Button("Save round") {
+                        saveRound()
+                    }
+                    .buttonStyle(GlossButtonStyle(compact: true))
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer(minLength: 0)
             } else {
-                HStack {
-                    Text("High, Low, Jack, Game")
-                        .font(.subheadline)
-                        .foregroundColor(GC.dim)
-                    Spacer()
-                    Text("\(sum) of 4")
-                        .font(.subheadline.bold())
-                        .foregroundColor(GC.dim)
-                        .monospacedDigit()
-                }
                 DrumPad(
                     titles: match.units.map { $0.name },
                     fieldNames: ["Points"],
                     values: $values,
                     ranges: { _, u in remainingRange(values[0], u, cap: 4) },
-                    summary: { u in "\(values[0][u])" }
+                    summary: { u in "\(values[0][u])" },
+                    info: { _ in "High, Low, Jack, Game" },
+                    status: "\(sum) of 4",
+                    actionTitle: "Save round",
+                    actionEnabled: true,
+                    action: { saveRound() }
                 )
             }
-            Button("Save round") {
-                var scores = values[0]
-                let amount = bid + 1
-                var detail = "\(match.units[bidder].name) bid \(amount) and made it"
-                if scores[bidder] < amount {
-                    scores[bidder] = -amount
-                    detail = "\(match.units[bidder].name) bid \(amount) and was set"
-                }
-                var r = ScoreRound(scores: scores)
-                r.detail = detail
-                onSave(r)
-            }
-            .buttonStyle(GlossButtonStyle())
         }
     }
 }

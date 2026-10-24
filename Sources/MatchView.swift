@@ -52,6 +52,14 @@ struct MatchView: View {
             }
         }
         .gcNavigation()
+        .onAppear {
+            Orient.lock(.landscape)
+        }
+        .onDisappear {
+            if !showRules && !showHistory {
+                Orient.lock(.portrait)
+            }
+        }
         .fullScreenCover(isPresented: $showRules) {
             if let m = match {
                 RulesSheet(kind: m.kind, players: m.names.count)
@@ -132,21 +140,18 @@ struct MatchView: View {
             switch m.kind {
             case .cribbage:
                 CribbageBoardView(matchID: matchID)
-                    .padding(6)
-                    .background(RoundedRectangle(cornerRadius: 14).fill(GC.mantle))
                     .frame(maxHeight: .infinity)
             case .war:
+                WarPanel(matchID: matchID)
+                    .frame(maxHeight: .infinity)
+            case .euchre:
                 ScrollView {
-                    WarPanel(matchID: matchID)
-                        .panel()
+                    RoundPanel(matchID: matchID)
                 }
                 .scrollBounceBehavior(.basedOnSize)
             default:
-                ScrollView {
-                    RoundPanel(matchID: matchID)
-                        .panel()
-                }
-                .scrollBounceBehavior(.basedOnSize)
+                RoundPanel(matchID: matchID)
+                    .frame(maxHeight: .infinity)
             }
         }
         .padding(.horizontal, 12)

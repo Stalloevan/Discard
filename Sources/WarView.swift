@@ -12,17 +12,7 @@ struct WarPanel: View {
         if let m = match {
             let total = GameRules.warPer(m.names.count) * m.names.count
             let held = m.cards.reduce(0, +)
-            VStack(spacing: 8) {
-                HStack {
-                    Text("Cards held by each player")
-                        .font(.subheadline)
-                        .foregroundColor(GC.dim)
-                    Spacer()
-                    Text("\(held) / \(total)")
-                        .font(.subheadline.bold())
-                        .foregroundColor(held == total ? GC.green : GC.dim)
-                        .monospacedDigit()
-                }
+            VStack(spacing: 4) {
                 DrumPad(
                     titles: m.names,
                     fieldNames: ["Cards"],
@@ -46,7 +36,9 @@ struct WarPanel: View {
                         store.mutate(matchID) { mm in
                             mm.cards = Array(repeating: GameRules.warPer(mm.names.count), count: mm.names.count)
                         }
-                    }
+                    },
+                    status: "\(held) / \(total)",
+                    statusColor: held == total ? GC.green : GC.dim
                 )
             }
         }
