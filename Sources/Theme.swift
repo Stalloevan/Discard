@@ -35,9 +35,16 @@ enum GC {
     static let button = rosewater
     static let gold = yellow
     static let cream = base
-    static let leatherFallback = Color(hex: 0xB26C5E)
+    static let leatherBase = Color(hex: 0xB26C5E)
+    static let stitch = Color(hex: 0xDF8E1D)
     static let onLeather = base
-    static let onLeatherDim = Color(hex: 0xEFF1F5).opacity(0.8)
+    static let onLeatherDim = Color(hex: 0xEFF1F5).opacity(0.85)
+
+    // The green table
+    static let felt = Color(hex: 0x3B6B4F)
+    static let feltDark = Color(hex: 0x2E5640)
+    static let onFelt = base
+    static let onFeltDim = Color(hex: 0xEFF1F5).opacity(0.75)
 }
 
 extension GameKind {
@@ -58,26 +65,46 @@ extension GameKind {
     }
 }
 
+/// Flat green with a fine, fixed grain of noise.
 struct FeltBackground: View {
     var body: some View {
-        GC.base.ignoresSafeArea()
+        ZStack {
+            GC.felt
+            Canvas { ctx, size in
+                var seed: UInt64 = 88172645463325252
+                let count = Int(size.width * size.height / 14)
+                for _ in 0..<count {
+                    seed = seed &* 6364136223846793005 &+ 1442695040888963407
+                    let a = Double((seed >> 33) & 0xFFFF) / 65535.0
+                    seed = seed &* 6364136223846793005 &+ 1442695040888963407
+                    let b = Double((seed >> 33) & 0xFFFF) / 65535.0
+                    seed = seed &* 6364136223846793005 &+ 1442695040888963407
+                    let c = Double((seed >> 33) & 0xFF) / 255.0
+                    let rect = CGRect(x: a * size.width, y: b * size.height, width: 1.2, height: 1.2)
+                    let tone: Color = c < 0.5 ? Color.black : Color.white
+                    ctx.fill(Path(rect), with: .color(tone.opacity(0.05 + 0.05 * c)))
+                }
+            }
+        }
+        .ignoresSafeArea()
     }
 }
 
-/// Rosewater leather: the tinted photo texture with flat stitching.
+/// Rosewater leather: the photo at 25% over solid leather, with flat yellow stitching.
 struct LeatherBackground: View {
     var corner: CGFloat = 16
 
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: corner)
-                .fill(GC.leatherFallback)
+                .fill(GC.leatherBase)
             Image("Leather")
                 .resizable(resizingMode: .tile)
+                .opacity(0.25)
                 .clipShape(RoundedRectangle(cornerRadius: corner))
             RoundedRectangle(cornerRadius: max(corner - 5, 2))
                 .inset(by: 5)
-                .strokeBorder(GC.onLeather.opacity(0.75), style: StrokeStyle(lineWidth: 1.3, dash: [5, 3]))
+                .strokeBorder(GC.stitch, style: StrokeStyle(lineWidth: 1.6, dash: [5, 3]))
         }
     }
 }
@@ -192,9 +219,9 @@ extension View {
 
     func gcNavigation() -> some View {
         self
-            .toolbarBackground(GC.mantle, for: .navigationBar)
+            .toolbarBackground(GC.feltDark, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarColorScheme(.light, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .tint(GC.rosewater)
     }
 
@@ -207,7 +234,7 @@ extension View {
                     Text(title.uppercased())
                         .font(.system(size: 17, weight: .heavy, design: .serif))
                         .tracking(1.5)
-                        .foregroundColor(GC.text)
+                        .foregroundColor(GC.onFelt)
                 }
             }
     }

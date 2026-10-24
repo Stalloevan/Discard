@@ -34,7 +34,7 @@ struct RulesView: View {
 
     var body: some View {
         List {
-            Section("Players") {
+            Section(header: Text("Players").foregroundColor(GC.onFeltDim)) {
                 Picker("Number of players", selection: $count) {
                     ForEach(kind.minPlayers...8, id: \.self) { n in
                         Text("\(n)").tag(n)
@@ -44,7 +44,7 @@ struct RulesView: View {
             }
             .listRowBackground(GC.mantle)
 
-            Section("Setup for \(count) players") {
+            Section(header: Text("Setup for \(count) players").foregroundColor(GC.onFeltDim)) {
                 LabeledContent("Decks", value: setup.decks)
                 LabeledContent("Cards removed", value: setup.removed)
                 LabeledContent("Hand", value: setup.hand)
@@ -55,7 +55,7 @@ struct RulesView: View {
             }
             .listRowBackground(GC.mantle)
 
-            Section("All player counts") {
+            Section(header: Text("All player counts").foregroundColor(GC.onFeltDim)) {
                 ForEach(kind.minPlayers...8, id: \.self) { n in
                     let s = GameRules.setup(kind, players: n)
                     VStack(alignment: .leading, spacing: 2) {
@@ -72,7 +72,7 @@ struct RulesView: View {
             .listRowBackground(GC.mantle)
 
             ForEach(GameRules.overview(kind)) { section in
-                Section(section.title) {
+                Section(header: Text(section.title).foregroundColor(GC.onFeltDim)) {
                     ForEach(section.lines, id: \.self) { line in
                         Text(line)
                             .font(.subheadline)
@@ -101,7 +101,7 @@ struct StatsView: View {
 
     var body: some View {
         List {
-            Section("Games won") {
+            Section(header: Text("Games won").foregroundColor(GC.onFeltDim)) {
                 if playerNames.isEmpty {
                     Text("No finished games yet.")
                         .foregroundColor(GC.dim)
@@ -122,7 +122,7 @@ struct StatsView: View {
             }
             .listRowBackground(GC.mantle)
 
-            Section("Finished games") {
+            Section(header: Text("Finished games").foregroundColor(GC.onFeltDim)) {
                 if finished.isEmpty {
                     Text("None yet.")
                         .foregroundColor(GC.dim)

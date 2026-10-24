@@ -21,7 +21,7 @@ struct MatchView: View {
                 content(m)
             } else {
                 Text("This game was removed.")
-                    .foregroundColor(GC.text)
+                    .foregroundColor(GC.onFelt)
             }
         }
         .gcTitle(match?.kind.title ?? "Game")

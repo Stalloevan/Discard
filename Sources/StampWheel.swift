@@ -27,7 +27,7 @@ struct DrumFace: View, Animatable {
                     .foregroundColor(GC.text)
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
-                    .padding(.horizontal, 10)
+                    .padding(.horizontal, 3)
                     .scaleEffect(x: 1, y: max(cos(theta), 0.05))
                     .offset(y: radius * sin(theta))
                     .opacity(visible ? Double(max(cos(theta), 0)) : 0)
@@ -37,7 +37,7 @@ struct DrumFace: View, Animatable {
 }
 
 /// A date-stamp style drum: steel housing, cream rubber band with numerals,
-/// knurled thumb edges. Drag to roll it, flick for momentum, it clicks into place.
+/// plain tan band. Drag to roll it, flick for momentum, it clicks into place.
 struct StampDrum: View {
     let title: String
     let labels: [String]
@@ -77,42 +77,21 @@ struct StampDrum: View {
                     .minimumScaleFactor(0.5)
                     .frame(maxWidth: width ?? .infinity)
             }
-            HStack(spacing: 0) {
-                knurl
-                ZStack {
-                    Rectangle()
-                        .fill(tanColor(seat))
-                    DrumFace(pos: pos, labels: labels, step: step, radius: radius)
-                    VStack {
-                        Rectangle().fill(GC.text.opacity(0.18)).frame(height: 1)
-                        Spacer()
-                        Rectangle().fill(GC.text.opacity(0.18)).frame(height: 1)
-                    }
-                    .padding(.vertical, height * 0.14)
+            ZStack {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(tanColor(seat))
+                DrumFace(pos: pos, labels: labels, step: step, radius: radius)
+                Rectangle()
+                    .fill(GC.text.opacity(0.35))
+                    .frame(height: 1)
+                    .padding(.horizontal, 8)
                     .allowsHitTesting(false)
-                    // Reading line
-                    Rectangle()
-                        .fill(GC.red.opacity(0.7))
-                        .frame(height: 1)
-                        .allowsHitTesting(false)
-                    HStack {
-                        Image(systemName: "arrowtriangle.right.fill")
-                            .font(.system(size: 9))
-                            .foregroundColor(GC.red)
-                        Spacer()
-                        Image(systemName: "arrowtriangle.left.fill")
-                            .font(.system(size: 9))
-                            .foregroundColor(GC.red)
-                    }
-                    .padding(.horizontal, 2)
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(seatColors[((seat % 8) + 8) % 8], lineWidth: 3)
                     .allowsHitTesting(false)
-                }
-                .frame(maxWidth: .infinity)
-                knurl
             }
             .frame(maxWidth: width ?? .infinity)
             .frame(height: height)
-            .background(RoundedRectangle(cornerRadius: 12).fill(seatColors[((seat % 8) + 8) % 8]))
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .contentShape(Rectangle())
             .gesture(
@@ -153,22 +132,6 @@ struct StampDrum: View {
                 }
             }
         }
-    }
-
-    /// Ribbed thumb edge on the side of the drum.
-    private var knurl: some View {
-        Canvas { ctx, size in
-            ctx.fill(Path(CGRect(origin: .zero, size: size)), with: .color(seatColors[((seat % 8) + 8) % 8]))
-            var y: CGFloat = 2
-            while y < size.height {
-                var p = Path()
-                p.move(to: CGPoint(x: 1, y: y))
-                p.addLine(to: CGPoint(x: size.width - 1, y: y))
-                ctx.stroke(p, with: .color(Color.black.opacity(0.28)), lineWidth: 1)
-                y += 4
-            }
-        }
-        .frame(width: 9)
     }
 }
 

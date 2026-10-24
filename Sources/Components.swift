@@ -32,8 +32,8 @@ func remainingRange(_ values: [Int], _ i: Int, cap: Int) -> ClosedRange<Int> {
     return 0...max(0, cap - others)
 }
 
-/// One big drum for the player you pick. Players are chips on top; fields are a
-/// segmented control; the drum, with -/+ buttons, edits the chosen player and field.
+/// One simple tan wheel per player, all on screen together. Fields are a segmented control;
+/// every wheel edits the chosen field for its own player.
 struct DrumPad: View {
     let titles: [String]
     let fieldNames: [String]
@@ -42,7 +42,6 @@ struct DrumPad: View {
     let summary: (Int) -> String
     var info: ((Int) -> String)? = nil
 
-    @State private var unit = 0
     @State private var field = 0
 
     private func current(_ f: Int, _ u: Int) -> Int {
@@ -59,60 +58,47 @@ struct DrumPad: View {
         }
     }
 
-    private func chip(_ i: Int, selected: Bool) -> some View {
-        VStack(spacing: 0) {
-            Text(titles[i])
-                .font(.caption2.bold())
-                .foregroundColor(GC.text)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-            Text(summary(i))
-                .font(.system(size: 17, weight: .heavy, design: .serif))
-                .foregroundColor(GC.text)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
+    private func cell(_ i: Int, _ f: Int, wheelHeight: CGFloat) -> some View {
+        VStack(spacing: 3) {
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(seatColors[i % 8])
+                    .frame(width: 8, height: 8)
+                Text(titles[i])
+                    .font(.caption2.bold())
+                    .foregroundColor(GC.text)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+            }
+            StampWheel(
+                title: "",
+                value: Binding<Int>(
+                    get: { current(f, i) },
+                    set: { write(f, i, $0) }
+                ),
+                range: ranges(f, i),
+                width: nil,
+                height: wheelHeight,
+                seat: i
+            )
+            if fieldNames.count > 1 {
+                Text(summary(i))
+                    .font(.caption2)
+                    .foregroundColor(GC.dim)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+            }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 5)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(selected ? seatColors[i % 8].opacity(0.35) : GC.surface0.opacity(0.6))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(seatColors[i % 8], lineWidth: selected ? 2.5 : 1)
-        )
-        .onTapGesture {
-            unit = i
-        }
-    }
-
-    private func stepButton(_ symbol: String, _ delta: Int, _ f: Int, _ u: Int) -> some View {
-        Button {
-            write(f, u, current(f, u) + delta)
-        } label: {
-            Image(systemName: symbol)
-                .font(.title2.bold())
-                .foregroundColor(GC.text)
-                .frame(width: 46, height: 46)
-                .background(Circle().fill(GC.button))
-        }
-        .buttonStyle(.plain)
     }
 
     var body: some View {
         let n = max(titles.count, 1)
         let f = min(field, max(fieldNames.count - 1, 0))
-        let u = min(unit, n - 1)
+        let perRow = n <= 4 ? n : (n + 1) / 2
+        let rows: [[Int]] = stride(from: 0, to: titles.count, by: perRow).map { start in
+            Array(start..<min(start + perRow, titles.count))
+        }
         VStack(spacing: 8) {
-            LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: min(n, 4)),
-                spacing: 6
-            ) {
-                ForEach(0..<titles.count, id: \.self) { i in
-                    chip(i, selected: i == u)
-                }
-            }
             if fieldNames.count > 1 {
                 Picker("Field", selection: $field) {
                     ForEach(0..<fieldNames.count, id: \.self) { i in
@@ -121,26 +107,24 @@ struct DrumPad: View {
                 }
                 .pickerStyle(.segmented)
             }
-            HStack(spacing: 10) {
-                stepButton("minus", -1, f, u)
-                StampWheel(
-                    title: "",
-                    value: Binding<Int>(
-                        get: { current(f, u) },
-                        set: { write(f, u, $0) }
-                    ),
-                    range: ranges(f, u),
-                    width: nil,
-                    height: 128,
-                    seat: u
-                )
-                stepButton("plus", 1, f, u)
+            ForEach(0..<rows.count, id: \.self) { r in
+                HStack(alignment: .top, spacing: 6) {
+                    ForEach(rows[r], id: \.self) { i in
+                        cell(i, f, wheelHeight: 92)
+                            .frame(maxWidth: .infinity)
+                    }
+                    if rows[r].count < perRow {
+                        ForEach(0..<(perRow - rows[r].count), id: \.self) { _ in
+                            Color.clear.frame(maxWidth: .infinity, maxHeight: 1)
+                        }
+                    }
+                }
             }
             if let info = info {
-                Text(info(u))
+                Text(info(0))
                     .font(.caption)
                     .foregroundColor(GC.dim)
-                    .lineLimit(1)
+                    .lineLimit(2)
                     .minimumScaleFactor(0.7)
             }
         }

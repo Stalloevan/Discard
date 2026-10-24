@@ -25,12 +25,12 @@ struct ContentView: View {
                                         GameTile(kind: kind, size: 80)
                                         Text(kind.title)
                                             .font(.subheadline.bold())
-                                            .foregroundColor(GC.text)
+                                            .foregroundColor(GC.onFelt)
                                             .lineLimit(1)
                                             .minimumScaleFactor(0.7)
                                         Text(kind.playersText)
                                             .font(.caption2)
-                                            .foregroundColor(GC.dim)
+                                            .foregroundColor(GC.onFeltDim)
                                     }
                                 }
                                 .buttonStyle(.plain)

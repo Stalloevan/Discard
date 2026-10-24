@@ -211,9 +211,13 @@ struct SpadesEntry: View {
                 values: $values,
                 ranges: { f, u in range(f, u) },
                 summary: { u in "\(values[0][u]) / \(values[1][u])" },
-                info: { u in
-                    let c = compute(u)
-                    return "\(match.units[u].name): hand \(signed(c.pts)), new bags +\(c.bags)"
+                info: { _ in
+                    var parts: [String] = []
+                    for u in 0..<match.units.count {
+                        let c = compute(u)
+                        parts.append("\(match.units[u].name) \(signed(c.pts)) (bags +\(c.bags))")
+                    }
+                    return parts.joined(separator: "  ·  ")
                 }
             )
             Button("Save round") {
