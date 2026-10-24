@@ -26,7 +26,7 @@ struct MatchView: View {
             // The whole game UI is laid out like a portrait screen, then turned a quarter turn (header on the left).
             // Portrait top/leading/bottom/trailing are the screen's left/bottom/right/top.
             // The notch side only needs to clear the cut-out (not the whole inset); the two long sides get the same margin.
-            let side = max(ins.bottom, ins.top)
+            let side: CGFloat = -6   // tight, equal margins on both long sides (12 - 6 = 6pt)
             let pins = EdgeInsets(
                 top: max(ins.leading - 22, 0),
                 leading: side,
