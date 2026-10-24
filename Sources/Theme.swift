@@ -262,7 +262,15 @@ struct GCHeader<Trailing: View>: View {
     let trailing: Trailing
     var below: AnyView? = nil
     var kind: GameKind? = nil
+    var edgePad: EdgeInsets = EdgeInsets()
     @Environment(\.dismiss) private var dismiss
+
+    /// Extra padding where the screen's own safe area ends up after the whole UI is turned.
+    func insets(_ i: EdgeInsets) -> GCHeader {
+        var copy = self
+        copy.edgePad = i
+        return copy
+    }
 
     /// Show this game's icon instead of the app icon.
     func icon(_ k: GameKind) -> GCHeader {
@@ -322,8 +330,9 @@ struct GCHeader<Trailing: View>: View {
             below
         }
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 8)
+        .padding(.leading, 12 + edgePad.leading)
+        .padding(.trailing, 12 + edgePad.trailing)
+        .padding(.top, 8 + edgePad.top)
         .padding(.bottom, 10)
         .frame(maxWidth: .infinity)
         .background(LeatherBar().ignoresSafeArea(edges: [.top, .horizontal]))

@@ -4,11 +4,7 @@ import SwiftUI
 struct ScoreStrip: View {
     let m: GameMatch
     @EnvironmentObject var store: Store
-    @Environment(\.verticalSizeClass) private var vSize
-
-    private var compact: Bool {
-        return vSize == .compact
-    }
+    var compact: Bool = false
 
     var body: some View {
         let n = max(m.units.count, 1)

@@ -32,25 +32,26 @@ func remainingRange(_ values: [Int], _ i: Int, cap: Int) -> ClosedRange<Int> {
     return 0...max(0, cap - others)
 }
 
-/// Where everyone sits. The table has two long sides, shown as the left and right columns of the screen.
-/// Even counts split evenly; an odd count adds the last person at the end of the table (the bottom edge).
+/// Where everyone sits. The UI is laid out like a portrait screen and the whole thing is turned a quarter turn
+/// for landscape play: even counts split evenly between the two long sides of the table (the "top" row faces
+/// the far edge, the "bottom" row faces the near edge); an odd count adds the last person at the end of the table.
 struct TableSeating {
-    let left: [Int]
-    let right: [Int]
+    let bottom: [Int]
+    let top: [Int]
     let end: Int?
 }
 
 func tableSeating(_ n: Int) -> TableSeating {
-    if n <= 1 { return TableSeating(left: Array(0..<max(n, 0)), right: [], end: nil) }
+    if n <= 1 { return TableSeating(bottom: Array(0..<max(n, 0)), top: [], end: nil) }
     let k = n / 2
     return TableSeating(
-        left: Array(0..<k),
-        right: Array(k..<(2 * k)),
+        bottom: Array(0..<k),
+        top: Array(k..<(2 * k)),      // this row is turned 180 degrees, so these run right to left
         end: n % 2 == 1 ? n - 1 : nil
     )
 }
 
-/// Turns its content so it faces a seat: 90 for the left edge, -90 for the right edge.
+/// Turns its content a quarter turn so it faces the person at the end of the table.
 struct EndFacing<Content: View>: View {
     let angle: Double
     let content: Content
@@ -70,36 +71,33 @@ struct EndFacing<Content: View>: View {
     }
 }
 
-/// The table. The controls strip stays upright at the top. Below it, two columns of cells fill all the
-/// remaining space with no gaps: the left column faces the left edge, the right column faces the right edge
-/// (text turned toward the edge). An odd player's cell sits upright along the bottom.
+/// The table: controls upright at the top, then two rows of cells that fill the rest with no gaps. The far row
+/// is turned upside down, the end seat a quarter turn.
 struct TableView<Cell: View, Center: View>: View {
     let count: Int
     var centerHeight: CGFloat
-    var endHeight: CGFloat
+    var endWidth: CGFloat
     let cell: (Int) -> Cell
     let center: Center
 
-    init(count: Int, centerHeight: CGFloat = 44, endHeight: CGFloat = 100, @ViewBuilder cell: @escaping (Int) -> Cell, @ViewBuilder center: () -> Center) {
+    init(count: Int, centerHeight: CGFloat = 44, endWidth: CGFloat = 104, @ViewBuilder cell: @escaping (Int) -> Cell, @ViewBuilder center: () -> Center) {
         self.count = count
         self.centerHeight = centerHeight
-        self.endHeight = endHeight
+        self.endWidth = endWidth
         self.cell = cell
         self.center = center()
     }
 
-    private func column(_ ids: [Int], angle: Double) -> some View {
-        GeometryReader { geo in
-            VStack(spacing: 0) {
-                ForEach(ids, id: \.self) { i in
-                    EndFacing(angle: angle) {
-                        cell(i)
-                            .padding(1.5)
-                    }
-                    .frame(height: geo.size.height / CGFloat(max(ids.count, 1)))
-                }
+    private func row(_ ids: [Int], _ h: CGFloat) -> some View {
+        HStack(spacing: 0) {
+            ForEach(ids, id: \.self) { i in
+                cell(i)
+                    .padding(1.5)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: h)
             }
         }
+        .frame(height: h)
     }
 
     var body: some View {
@@ -110,18 +108,22 @@ struct TableView<Cell: View, Center: View>: View {
                     .frame(height: centerHeight)
             }
             GeometryReader { geo in
-                let endH: CGFloat = seats.end == nil ? 0 : endHeight
-                let colsH = geo.size.height - endH - (seats.end == nil ? 0 : 3)
-                VStack(spacing: 3) {
-                    HStack(spacing: 3) {
-                        column(seats.left, angle: 90)
-                        column(seats.right, angle: -90)
+                let hasEnd = seats.end != nil
+                let mainW = geo.size.width - (hasEnd ? endWidth + 3 : 0)
+                let rowH = max((geo.size.height - 3) / 2, 40)
+                HStack(spacing: 3) {
+                    VStack(spacing: 3) {
+                        row(seats.top, rowH)
+                            .rotationEffect(.degrees(180))
+                        row(seats.bottom, rowH)
                     }
-                    .frame(height: colsH)
+                    .frame(width: mainW)
                     if let e = seats.end {
-                        cell(e)
-                            .padding(1.5)
-                            .frame(height: endH)
+                        EndFacing(angle: -90) {
+                            cell(e)
+                                .padding(1.5)
+                        }
+                        .frame(width: endWidth, height: geo.size.height)
                     }
                 }
             }
@@ -215,46 +217,47 @@ struct DrumPad: View {
     }
 
     private func centerStrip(_ f: Int) -> some View {
-        HStack(spacing: 8) {
+        VStack(spacing: 6) {
             if fieldNames.count > 1 {
                 ChoiceChips(items: fieldNames, selection: $field, columns: fieldNames.count)
-                    .frame(maxWidth: 320)
             }
-            if !status.isEmpty {
-                Text(status)
-                    .font(.subheadline.bold())
-                    .foregroundColor(statusColor)
-                    .monospacedDigit()
-                    .lineLimit(1)
-            }
-            if let info = info {
-                Text(info(0))
-                    .font(.caption)
-                    .foregroundColor(GC.dim)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.7)
-            }
-            Spacer(minLength: 0)
-            Button {
-                resetAll()
-            } label: {
-                Label("Reset wheels", systemImage: "arrow.counterclockwise")
-                    .font(.subheadline.bold())
-                    .foregroundColor(GC.text)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Capsule().fill(GC.surface1))
-            }
-            .buttonStyle(.plain)
-            if let t = actionTitle {
-                Button(t) {
-                    action?()
+            HStack(spacing: 8) {
+                if !status.isEmpty {
+                    Text(status)
+                        .font(.subheadline.bold())
+                        .foregroundColor(statusColor)
+                        .monospacedDigit()
+                        .lineLimit(1)
                 }
-                .buttonStyle(GlossButtonStyle(compact: true))
-                .disabled(!actionEnabled)
+                if let info = info {
+                    Text(info(0))
+                        .font(.caption)
+                        .foregroundColor(GC.dim)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.7)
+                }
+                Spacer(minLength: 0)
+                Button {
+                    resetAll()
+                } label: {
+                    Image(systemName: "arrow.counterclockwise")
+                        .font(.subheadline.bold())
+                        .foregroundColor(GC.text)
+                        .frame(width: 38, height: 32)
+                        .background(Capsule().fill(GC.surface1))
+                }
+                .buttonStyle(.plain)
+                if let t = actionTitle {
+                    Button(t) {
+                        action?()
+                    }
+                    .buttonStyle(GlossButtonStyle(compact: true))
+                    .disabled(!actionEnabled)
+                }
             }
         }
         .padding(.horizontal, 10)
+        .padding(.vertical, 6)
         .background(RoundedRectangle(cornerRadius: 12).fill(GC.mantle))
     }
 
@@ -262,8 +265,8 @@ struct DrumPad: View {
         let f = min(field, max(fieldNames.count - 1, 0))
         TableView(
             count: titles.count,
-            centerHeight: 46,
-            endHeight: 104,
+            centerHeight: fieldNames.count > 1 ? 92 : 50,
+            endWidth: 104,
             cell: { i in wheelCell(i, f) },
             center: { centerStrip(f) }
         )

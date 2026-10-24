@@ -18,39 +18,20 @@ struct MatchView: View {
     }
 
     var body: some View {
-        ZStack {
-            VStack(spacing: 0) {
-                if let m = match {
-                    GCHeader(m.kind.title) {
-                        HeaderButton(symbol: "book") {
-                            showRules = true
-                        }
-                        HeaderButton(symbol: "ellipsis.circle") {
-                            overlay = .menu
-                        }
-                    } below: {
-                        ScoreStrip(m: m)
-                    }
-                    .icon(m.kind)
-                } else {
-                    GCHeader("Game")
-                }
-                ZStack(alignment: .top) {
-                    if let m = match {
-                        content(m)
-                    } else {
-                        Text("This game was removed.")
-                            .foregroundColor(GC.onFelt)
-                    }
-                }
-                .frame(maxHeight: .infinity)
-            }
-            .background(FeltBackground())
-
-            if overlay != nil {
-                FlatMenuOverlay(title: overlayTitle, actions: overlayActions, close: { overlay = nil })
-            }
+        GeometryReader { geo in
+            let ins = geo.safeAreaInsets
+            let w = geo.size.width
+            let h = geo.size.height
+            // The whole game UI is laid out like a portrait screen, then turned a quarter turn (header on the left).
+            // Portrait top/leading/bottom/trailing are the screen's left/bottom/right/top.
+            let pins = EdgeInsets(top: ins.leading, leading: ins.bottom, bottom: ins.trailing, trailing: ins.top)
+            portraitUI(pins)
+                .frame(width: h, height: w)
+                .rotationEffect(.degrees(-90))
+                .position(x: w / 2, y: h / 2)
         }
+        .ignoresSafeArea()
+        .background(FeltBackground())
         .gcNavigation()
         .onAppear {
             Orient.lock(.landscape)
@@ -68,6 +49,46 @@ struct MatchView: View {
         .fullScreenCover(isPresented: $showHistory) {
             HistorySheet(matchID: matchID)
                 .environmentObject(store)
+        }
+    }
+
+    private func portraitUI(_ pins: EdgeInsets) -> some View {
+        ZStack {
+            VStack(spacing: 0) {
+                if let m = match {
+                    GCHeader(m.kind.title) {
+                        HeaderButton(symbol: "book") {
+                            showRules = true
+                        }
+                        HeaderButton(symbol: "ellipsis.circle") {
+                            overlay = .menu
+                        }
+                    } below: {
+                        ScoreStrip(m: m)
+                    }
+                    .icon(m.kind)
+                    .insets(pins)
+                } else {
+                    GCHeader("Game")
+                        .insets(pins)
+                }
+                ZStack(alignment: .top) {
+                    if let m = match {
+                        content(m)
+                    } else {
+                        Text("This game was removed.")
+                            .foregroundColor(GC.onFelt)
+                    }
+                }
+                .frame(maxHeight: .infinity)
+                .padding(.leading, pins.leading)
+                .padding(.trailing, pins.trailing)
+                .padding(.bottom, pins.bottom)
+            }
+
+            if overlay != nil {
+                FlatMenuOverlay(title: overlayTitle, actions: overlayActions, close: { overlay = nil })
+            }
         }
     }
 

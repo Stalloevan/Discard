@@ -385,7 +385,7 @@ struct CribbageBoardView: View {
             TableView(
                 count: m.names.count,
                 centerHeight: 0,
-                endHeight: 110,
+                endWidth: 124,
                 cell: { i in seat(m, i, cleared: cleared) },
                 center: { EmptyView() }
             )
