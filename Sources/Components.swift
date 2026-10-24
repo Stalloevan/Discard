@@ -41,8 +41,23 @@ struct DrumPad: View {
     let ranges: (Int, Int) -> ClosedRange<Int>   // (field, unit)
     let summary: (Int) -> String
     var info: ((Int) -> String)? = nil
+    var onReset: (() -> Void)? = nil
 
     @State private var field = 0
+
+    private func resetAll() {
+        if let onReset = onReset {
+            onReset()
+            return
+        }
+        var copy = values
+        for f in 0..<copy.count {
+            for u in 0..<copy[f].count {
+                copy[f][u] = min(max(0, ranges(f, u).lowerBound), ranges(f, u).upperBound)
+            }
+        }
+        values = copy
+    }
 
     private func current(_ f: Int, _ u: Int) -> Int {
         if f < values.count && u < values[f].count { return values[f][u] }
@@ -100,12 +115,7 @@ struct DrumPad: View {
         }
         VStack(spacing: 8) {
             if fieldNames.count > 1 {
-                Picker("Field", selection: $field) {
-                    ForEach(0..<fieldNames.count, id: \.self) { i in
-                        Text(fieldNames[i]).tag(i)
-                    }
-                }
-                .pickerStyle(.segmented)
+                ChoiceChips(items: fieldNames, selection: $field, columns: fieldNames.count)
             }
             ForEach(0..<rows.count, id: \.self) { r in
                 HStack(alignment: .top, spacing: 6) {
@@ -120,12 +130,26 @@ struct DrumPad: View {
                     }
                 }
             }
-            if let info = info {
-                Text(info(0))
-                    .font(.caption)
-                    .foregroundColor(GC.dim)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.7)
+            HStack(alignment: .center, spacing: 8) {
+                if let info = info {
+                    Text(info(0))
+                        .font(.caption)
+                        .foregroundColor(GC.dim)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.7)
+                }
+                Spacer(minLength: 0)
+                Button {
+                    resetAll()
+                } label: {
+                    Label("Reset wheels", systemImage: "arrow.counterclockwise")
+                        .font(.subheadline.bold())
+                        .foregroundColor(GC.text)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(GC.surface1))
+                }
+                .buttonStyle(.plain)
             }
         }
     }

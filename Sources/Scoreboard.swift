@@ -17,9 +17,9 @@ struct ScoreStrip: View {
                 }
             }
             .padding(.horizontal, 12)
-            .padding(.top, 12)
+            .padding(.top, 10)
         }
-        .frame(height: 124)
+        .frame(height: 104)
         .background(LeatherBackground(corner: 18))
     }
 
@@ -58,7 +58,7 @@ struct ScoreStrip: View {
                         .minimumScaleFactor(0.5)
                         .padding(.horizontal, 3)
                 }
-                .frame(width: tileW, height: 56)
+                .frame(width: tileW, height: 46)
                 if hasDealer {
                     Image(systemName: "rectangle.stack.fill")
                         .font(.system(size: 9))
@@ -93,13 +93,14 @@ struct ScoreStrip: View {
 struct DealerBar: View {
     let m: GameMatch
     let matchID: UUID
+    var onChangeDealer: () -> Void = {}
     @EnvironmentObject var store: Store
 
     var body: some View {
         let name = m.dealer < m.names.count ? m.names[m.dealer] : ""
         HStack(spacing: 8) {
             Image(systemName: "rectangle.stack.fill")
-                .foregroundColor(GC.gold)
+                .foregroundColor(GC.yellow)
             Text("Dealer")
                 .foregroundColor(GC.dim)
             Text(name)
@@ -107,24 +108,20 @@ struct DealerBar: View {
                 .foregroundColor(GC.text)
                 .lineLimit(1)
             if m.kind == .cribbage {
-                Text("· crib \(GameRules.cribSize(m.names.count)) cards")
+                Text("· crib \(GameRules.cribSize(m.names.count))")
                     .font(.caption)
                     .foregroundColor(GC.dim)
             }
             Spacer()
-            Menu {
-                ForEach(0..<m.names.count, id: \.self) { i in
-                    Button(m.names[i]) {
-                        store.mutate(matchID) { mm in
-                            mm.dealer = i
-                        }
-                    }
-                }
+            Button {
+                onChangeDealer()
             } label: {
                 Image(systemName: "person.crop.circle")
                     .font(.title3)
                     .foregroundColor(GC.text)
+                    .frame(width: 34, height: 30)
             }
+            .buttonStyle(.plain)
             Button("Next") {
                 store.mutate(matchID) { mm in
                     mm.dealer = (mm.dealer + 1) % mm.names.count
@@ -134,7 +131,7 @@ struct DealerBar: View {
         }
         .font(.subheadline)
         .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.vertical, 5)
         .background(Capsule().fill(GC.mantle))
     }
 }

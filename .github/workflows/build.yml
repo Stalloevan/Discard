@@ -40,6 +40,8 @@ jobs:
             bg="#0B4D2E"
           fi
           magick -size 1024x1024 "xc:$bg" \( icon/raw.png -resize 640x640 \) -gravity center -composite -alpha off Sources/Assets.xcassets/AppIcon.appiconset/icon-1024.png
+          mkdir -p Sources/Assets.xcassets/HeaderIcon.imageset
+          magick Sources/Assets.xcassets/AppIcon.appiconset/icon-1024.png -resize 192x192 Sources/Assets.xcassets/HeaderIcon.imageset/icon.png
           echo "source=$src" >> "$GITHUB_OUTPUT"
       - name: Fetch leather texture
         id: leather

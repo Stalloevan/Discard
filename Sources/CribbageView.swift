@@ -53,10 +53,9 @@ func visibleRange(_ pegs: [Peg]) -> (Int, Int) {
     return (lo, max(hi, lo + 10))
 }
 
-/// The draggable front peg of one player. Big enough for a thumb, and it shows its score.
+/// The draggable peg (the back peg, the one that leaps ahead). Big enough for a thumb.
 struct PegHandle: View {
     let color: Color
-    let label: String
     let position: CGPoint
     let selected: Bool
     let onChange: (CGPoint) -> Void
@@ -66,15 +65,8 @@ struct PegHandle: View {
         Circle()
             .fill(color)
             .overlay(Circle().stroke(GC.base, lineWidth: 3))
-            .overlay(
-                Text(label)
-                    .font(.system(size: 13, weight: .heavy, design: .rounded))
-                    .foregroundColor(GC.base)
-                    .minimumScaleFactor(0.6)
-                    .lineLimit(1)
-            )
-            .frame(width: 34, height: 34)
-            .frame(width: 46, height: 46)
+            .frame(width: 36, height: 36)
+            .frame(width: 48, height: 48)
             .contentShape(Circle())
             .position(position)
             .gesture(
@@ -127,26 +119,28 @@ struct PegBoard: View {
         }
     }
 
-    private func frontHole(_ p: Int) -> Int {
+    /// Where the draggable (back) peg is drawn.
+    private func movingHole(_ p: Int) -> Int {
         if dragPlayer == p { return dragHole }
-        return pegs[p].front
+        return pegs[p].back
     }
 
     private func gainBadge(_ p: Int, _ g: BoardGeo) -> some View {
-        let back = pegs[p].back
-        let front = frontHole(p)
-        let delta = front - back
+        let moving = movingHole(p)
+        let front = pegs[p].front
+        let delta = abs(front - moving)
         let color = seatColors[p % 8]
-        let a = g.point(p, back)
+        let a = g.point(p, moving)
         let b = g.point(p, front)
         let apart = abs(a.y - b.y)
-        let y = apart >= 44 ? (a.y + b.y) / 2 : b.y - 30
+        let top = min(a.y, b.y)
+        let y = apart >= 48 ? (a.y + b.y) / 2 : top - 32
         return ZStack {
             if delta > 0 {
                 Text("+\(delta)")
-                    .font(.system(size: 12, weight: .heavy))
+                    .font(.system(size: 13, weight: .heavy))
                     .foregroundColor(GC.base)
-                    .padding(.horizontal, 7)
+                    .padding(.horizontal, 8)
                     .padding(.vertical, 3)
                     .background(Capsule().fill(GC.text))
                     .overlay(Capsule().stroke(color, lineWidth: 2))
@@ -159,35 +153,35 @@ struct PegBoard: View {
     private func pegViews(_ p: Int, _ g: BoardGeo) -> some View {
         let color = seatColors[p % 8]
         let peg = pegs[p]
-        let backPt = g.point(p, peg.back)
-        let frontPt = g.point(p, frontHole(p))
+        let movePt = g.point(p, movingHole(p))
+        let frontPt = g.point(p, peg.front)
         let add = p < previews.count ? previews[p] : 0
         return ZStack {
-            if peg.back != peg.front || dragPlayer == p {
+            // Front (leading) peg: plain marker, not draggable
+            Circle()
+                .fill(color.opacity(0.55))
+                .overlay(Circle().stroke(GC.base, lineWidth: 3))
+                .frame(width: 36, height: 36)
+                .position(frontPt)
+                .allowsHitTesting(false)
+            if movingHole(p) != peg.front {
                 Path { path in
-                    path.move(to: backPt)
+                    path.move(to: movePt)
                     path.addLine(to: frontPt)
                 }
                 .stroke(color.opacity(0.45), style: StrokeStyle(lineWidth: 8, lineCap: .round))
                 .allowsHitTesting(false)
-                Circle()
-                    .fill(color.opacity(0.65))
-                    .overlay(Circle().stroke(GC.base, lineWidth: 2))
-                    .frame(width: 24, height: 24)
-                    .position(backPt)
-                    .allowsHitTesting(false)
             }
             if add > 0 && dragPlayer == nil && peg.front + add <= g.hi {
                 Circle()
                     .strokeBorder(color, style: StrokeStyle(lineWidth: 3, dash: [4, 3]))
-                    .frame(width: 34, height: 34)
+                    .frame(width: 36, height: 36)
                     .position(g.point(p, peg.front + add))
                     .allowsHitTesting(false)
             }
             PegHandle(
                 color: color,
-                label: "\(frontHole(p))",
-                position: frontPt,
+                position: movePt,
                 selected: selected == p,
                 onChange: { pt in
                     if dragPlayer == nil {
@@ -208,7 +202,7 @@ struct PegBoard: View {
     private func loupe(_ p: Int, _ g: BoardGeo) -> some View {
         let color = seatColors[p % 8]
         let gain = max(dragHole - pegs[p].front, 0)
-        let note = gain > 0 ? "+\(gain)" : (dragHole == pegs[p].front ? "stay" : "back")
+        let note = gain > 0 ? "+\(gain)" : (dragHole == pegs[p].back ? "stay" : "behind")
         let x = min(max(g.laneCenter(p), 44), g.size.width - 44)
         let y = max(g.holeY(dragHole) - 64, 28)
         return VStack(spacing: 0) {
@@ -290,28 +284,6 @@ struct CribbageBoardView: View {
                 if !m.finished {
                     wheels(m)
                 }
-                HStack {
-                    Spacer()
-                    Button {
-                        undo()
-                    } label: {
-                        Label("Undo", systemImage: "arrow.uturn.backward")
-                            .font(.subheadline)
-                    }
-                    .foregroundColor(GC.text)
-                    .disabled(m.pegHistory.isEmpty)
-                    Menu {
-                        Button(role: .destructive) {
-                            resetBoard()
-                        } label: {
-                            Label("Reset the board", systemImage: "arrow.counterclockwise")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .font(.title3)
-                            .foregroundColor(GC.text)
-                    }
-                }
             }
         }
     }
@@ -336,14 +308,15 @@ struct CribbageBoardView: View {
         )
         return VStack(spacing: 3) {
             if cap >= 1 {
-                StampWheel(title: "", value: amount, range: 1...cap, width: nil, height: 78, seat: i)
+                StampWheel(title: "", value: amount, range: 1...cap, width: nil, height: 70, seat: i)
                     .padding(.horizontal, 2)
                 Button {
                     selected = i
                     place(i, front + min(amounts[i], cap))
+                    amounts[i] = 1
                 } label: {
                     Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 30))
+                        .font(.system(size: 28))
                         .foregroundColor(seatColors[i % 8])
                 }
                 .buttonStyle(.plain)
@@ -351,45 +324,31 @@ struct CribbageBoardView: View {
                 Text("Home")
                     .font(.caption.bold())
                     .foregroundColor(GC.dim)
-                    .frame(height: 78)
+                    .frame(height: 70)
             }
         }
     }
 
+    /// Dragging the back peg to a hole ahead of the front peg leapfrogs it (the old front becomes the back).
+    /// Dropping it at or behind the front peg just moves the back peg.
     private func place(_ u: Int, _ hole: Int) {
         store.mutate(matchID) { m in
             if m.finished { return }
             if u >= m.pegs.count { return }
             var p = m.pegs[u]
-            if hole == p.front { return }
+            if hole > p.front {
+                p.back = p.front
+                p.front = hole
+            } else if hole != p.back {
+                p.back = hole
+            } else {
+                return
+            }
             m.pegHistory.append(m.pegs)
             if m.pegHistory.count > 60 {
                 m.pegHistory.removeFirst()
             }
-            if hole > p.front {
-                p.back = p.front
-                p.front = hole
-            } else {
-                p.front = hole
-                if p.back > hole { p.back = hole }
-            }
             m.pegs[u] = p
-        }
-    }
-
-    private func undo() {
-        store.mutate(matchID) { m in
-            if let last = m.pegHistory.last {
-                m.pegs = last
-                m.pegHistory.removeLast()
-            }
-        }
-    }
-
-    private func resetBoard() {
-        store.mutate(matchID) { m in
-            m.pegs = Array(repeating: Peg(), count: m.names.count)
-            m.pegHistory = []
         }
     }
 }

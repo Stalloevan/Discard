@@ -391,11 +391,7 @@ struct HLJEntry: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            Picker("Entry", selection: $page) {
-                Text("Bid").tag(0)
-                Text("Points won").tag(1)
-            }
-            .pickerStyle(.segmented)
+            ChoiceChips(items: ["Bid", "Points won"], selection: $page, columns: 2)
             if page == 0 {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Who bid?")

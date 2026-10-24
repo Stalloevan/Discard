@@ -217,26 +217,201 @@ extension View {
         modifier(Embossed(size: size))
     }
 
+    /// We draw our own header, so the system bar (and its glass buttons) stays out of the way.
     func gcNavigation() -> some View {
         self
-            .toolbarBackground(GC.feltDark, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .tint(GC.rosewater)
+            .navigationBarBackButtonHidden(true)
+            .toolbar(.hidden, for: .navigationBar)
+    }
+}
+
+extension UINavigationController: UIGestureRecognizerDelegate {
+    open override func viewDidLoad() {
+        super.viewDidLoad()
+        interactivePopGestureRecognizer?.delegate = self
     }
 
-    func gcTitle(_ title: String) -> some View {
-        self
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text(title.uppercased())
-                        .font(.system(size: 17, weight: .heavy, design: .serif))
-                        .tracking(1.5)
-                        .foregroundColor(GC.onFelt)
+    public func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        return viewControllers.count > 1
+    }
+}
+
+/// Flat leather bar with yellow stitching along its lower edge. Runs up behind the status bar.
+struct LeatherBar: View {
+    var body: some View {
+        ZStack {
+            GC.leatherBase
+            Image("Leather")
+                .resizable(resizingMode: .tile)
+                .opacity(0.25)
+            GeometryReader { geo in
+                Path { path in
+                    path.move(to: CGPoint(x: 8, y: geo.size.height - 5))
+                    path.addLine(to: CGPoint(x: geo.size.width - 8, y: geo.size.height - 5))
                 }
+                .stroke(GC.stitch, style: StrokeStyle(lineWidth: 1.6, dash: [5, 3]))
             }
+        }
+    }
+}
+
+/// The header: leather bar, app icon, title, back button and trailing buttons.
+struct GCHeader<Trailing: View>: View {
+    let title: String
+    var showBack: Bool
+    let trailing: Trailing
+    @Environment(\.dismiss) private var dismiss
+
+    init(_ title: String, showBack: Bool = true, @ViewBuilder trailing: () -> Trailing) {
+        self.title = title
+        self.showBack = showBack
+        self.trailing = trailing()
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if showBack {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(GC.onLeather)
+                        .frame(width: 32, height: 36)
+                }
+                .buttonStyle(.plain)
+            }
+            Image("HeaderIcon")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 32, height: 32)
+                .clipShape(RoundedRectangle(cornerRadius: 7))
+            Text(title.uppercased())
+                .font(.system(size: 19, weight: .heavy, design: .serif))
+                .tracking(1.5)
+                .foregroundColor(GC.onLeather)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            Spacer(minLength: 4)
+            trailing
+                .foregroundColor(GC.onLeather)
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
+        .padding(.bottom, 12)
+        .frame(maxWidth: .infinity)
+        .background(LeatherBar().ignoresSafeArea(edges: .top))
+    }
+}
+
+extension GCHeader where Trailing == EmptyView {
+    init(_ title: String, showBack: Bool = true) {
+        self.init(title, showBack: showBack, trailing: { EmptyView() })
+    }
+}
+
+/// A round header button (no system glass).
+struct HeaderButton: View {
+    let symbol: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundColor(GC.onLeather)
+                .frame(width: 36, height: 36)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct FlatAction: Identifiable {
+    let id = UUID()
+    let title: String
+    var destructive: Bool = false
+    let action: () -> Void
+}
+
+/// Flat pop-up list that replaces native menus and confirmation dialogs.
+struct FlatMenuOverlay: View {
+    let title: String
+    let actions: [FlatAction]
+    let close: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.3)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    close()
+                }
+            VStack(spacing: 0) {
+                if !title.isEmpty {
+                    Text(title)
+                        .font(.subheadline.bold())
+                        .foregroundColor(GC.dim)
+                        .padding(.vertical, 12)
+                }
+                ForEach(actions) { a in
+                    Rectangle().fill(GC.surface0).frame(height: 1)
+                    Button {
+                        close()
+                        a.action()
+                    } label: {
+                        Text(a.title)
+                            .font(.body.bold())
+                            .foregroundColor(a.destructive ? GC.red : GC.text)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                    }
+                    .buttonStyle(.plain)
+                }
+                Rectangle().fill(GC.surface0).frame(height: 1)
+                Button {
+                    close()
+                } label: {
+                    Text("Cancel")
+                        .foregroundColor(GC.dim)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                }
+                .buttonStyle(.plain)
+            }
+            .frame(width: 290)
+            .background(RoundedRectangle(cornerRadius: 16).fill(GC.base))
+        }
+    }
+}
+
+/// Flat +/- control with a label.
+struct FlatStepper: View {
+    let label: String
+    @Binding var value: Int
+    let range: ClosedRange<Int>
+    var step: Int = 1
+
+    private func button(_ symbol: String, _ delta: Int) -> some View {
+        Button {
+            value = min(max(value + delta, range.lowerBound), range.upperBound)
+        } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(GC.text)
+                .frame(width: 38, height: 34)
+                .background(Capsule().fill(GC.rosewater))
+        }
+        .buttonStyle(.plain)
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(label)
+                .foregroundColor(GC.text)
+            Spacer()
+            button("minus", -step)
+            button("plus", step)
+        }
     }
 }
 

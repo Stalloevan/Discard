@@ -41,14 +41,13 @@ struct WarPanel: View {
                     info: { _ in
                         let out = m.names.indices.filter { m.cards[$0] == 0 }.map { m.names[$0] }
                         return out.isEmpty ? "Move cards after every battle." : "Out: " + out.joined(separator: ", ")
+                    },
+                    onReset: {
+                        store.mutate(matchID) { mm in
+                            mm.cards = Array(repeating: GameRules.warPer(mm.names.count), count: mm.names.count)
+                        }
                     }
                 )
-                Button("Reset to the starting deal") {
-                    store.mutate(matchID) { mm in
-                        mm.cards = Array(repeating: GameRules.warPer(mm.names.count), count: mm.names.count)
-                    }
-                }
-                .buttonStyle(GlossButtonStyle(tint: GC.surface1, compact: true))
             }
         }
     }

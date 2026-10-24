@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var store: Store
+    @State private var pendingDelete: UUID? = nil
 
     private var active: [GameMatch] {
         return store.matches.filter { !$0.finished }
@@ -10,85 +11,99 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                FeltBackground()
-                ScrollView {
-                    VStack(spacing: 18) {
-                        banner
-
-                        LazyVGrid(
-                            columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
-                            spacing: 16
-                        ) {
-                            ForEach(GameKind.allCases) { kind in
-                                NavigationLink(value: kind) {
-                                    VStack(spacing: 5) {
-                                        GameTile(kind: kind, size: 80)
-                                        Text(kind.title)
-                                            .font(.subheadline.bold())
-                                            .foregroundColor(GC.onFelt)
-                                            .lineLimit(1)
-                                            .minimumScaleFactor(0.7)
-                                        Text(kind.playersText)
-                                            .font(.caption2)
-                                            .foregroundColor(GC.onFeltDim)
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                            }
+                VStack(spacing: 0) {
+                    GCHeader("Discard", showBack: false) {
+                        NavigationLink {
+                            StatsView()
+                        } label: {
+                            Image(systemName: "trophy.fill")
+                                .font(.system(size: 19, weight: .semibold))
+                                .foregroundColor(GC.onLeather)
+                                .frame(width: 36, height: 36)
                         }
-
-                        if !active.isEmpty {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Text("IN PROGRESS")
-                                    .font(.system(size: 13, weight: .heavy, design: .serif))
-                                    .tracking(1.5)
-                                    .foregroundColor(GC.dim)
-                                ForEach(active) { m in
-                                    NavigationLink(value: m.id) {
-                                        HStack(spacing: 10) {
-                                            GameTile(kind: m.kind, size: 40)
-                                            VStack(alignment: .leading, spacing: 1) {
-                                                Text(m.kind.title)
-                                                    .font(.subheadline.bold())
-                                                    .foregroundColor(GC.text)
-                                                Text(m.names.joined(separator: ", "))
-                                                    .font(.caption)
-                                                    .foregroundColor(GC.dim)
-                                                    .lineLimit(1)
-                                            }
-                                            Spacer()
-                                            Image(systemName: "chevron.right")
-                                                .foregroundColor(GC.dim)
+                    }
+                    ScrollView {
+                        VStack(spacing: 18) {
+                            LazyVGrid(
+                                columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
+                                spacing: 16
+                            ) {
+                                ForEach(GameKind.allCases) { kind in
+                                    NavigationLink(value: kind) {
+                                        VStack(spacing: 5) {
+                                            GameTile(kind: kind, size: 80)
+                                            Text(kind.title)
+                                                .font(.subheadline.bold())
+                                                .foregroundColor(GC.onFelt)
+                                                .lineLimit(1)
+                                                .minimumScaleFactor(0.7)
+                                            Text(kind.playersText)
+                                                .font(.caption2)
+                                                .foregroundColor(GC.onFeltDim)
                                         }
                                     }
                                     .buttonStyle(.plain)
-                                    .contextMenu {
-                                        Button(role: .destructive) {
-                                            store.delete(m.id)
-                                        } label: {
-                                            Label("Delete game", systemImage: "trash")
+                                }
+                            }
+
+                            if !active.isEmpty {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    Text("IN PROGRESS")
+                                        .font(.system(size: 13, weight: .heavy, design: .serif))
+                                        .tracking(1.5)
+                                        .foregroundColor(GC.dim)
+                                    ForEach(active) { m in
+                                        HStack(spacing: 6) {
+                                            NavigationLink(value: m.id) {
+                                                HStack(spacing: 10) {
+                                                    GameTile(kind: m.kind, size: 40)
+                                                    VStack(alignment: .leading, spacing: 1) {
+                                                        Text(m.kind.title)
+                                                            .font(.subheadline.bold())
+                                                            .foregroundColor(GC.text)
+                                                        Text(m.names.joined(separator: ", "))
+                                                            .font(.caption)
+                                                            .foregroundColor(GC.dim)
+                                                            .lineLimit(1)
+                                                    }
+                                                    Spacer()
+                                                }
+                                            }
+                                            .buttonStyle(.plain)
+                                            Button {
+                                                pendingDelete = m.id
+                                            } label: {
+                                                Image(systemName: "trash")
+                                                    .font(.system(size: 17, weight: .semibold))
+                                                    .foregroundColor(GC.red)
+                                                    .frame(width: 44, height: 44)
+                                            }
+                                            .buttonStyle(.plain)
                                         }
                                     }
                                 }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .panel()
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .panel()
                         }
+                        .padding(16)
                     }
-                    .padding(16)
+                }
+                .background(FeltBackground())
+
+                if let id = pendingDelete {
+                    FlatMenuOverlay(
+                        title: "Delete this game?",
+                        actions: [
+                            FlatAction(title: "Delete", destructive: true) {
+                                store.delete(id)
+                            }
+                        ],
+                        close: { pendingDelete = nil }
+                    )
                 }
             }
-            .gcTitle("Discard")
             .gcNavigation()
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink {
-                        StatsView()
-                    } label: {
-                        Image(systemName: "trophy.fill")
-                    }
-                }
-            }
             .navigationDestination(for: GameKind.self) { kind in
                 GameHomeView(kind: kind)
             }
@@ -97,22 +112,6 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(.light)
-    }
-
-    private var banner: some View {
-        HStack(spacing: 14) {
-            LogoTile(size: 66)
-            VStack(alignment: .leading, spacing: 4) {
-                Text("DISCARD")
-                    .embossed(36)
-                Text("Deal. Score. Win.")
-                    .font(.subheadline)
-                    .foregroundColor(GC.onLeatherDim)
-            }
-            Spacer()
-        }
-        .padding(16)
-        .background(LeatherBackground(corner: 20))
     }
 }
 
@@ -156,116 +155,100 @@ struct GameHomeView: View {
 
     var body: some View {
         ZStack {
-            FeltBackground()
-            ScrollView {
-                VStack(spacing: 14) {
-                    HStack(spacing: 14) {
-                        GameTile(kind: kind, size: 62)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(kind.title.uppercased())
-                                .embossed(26)
-                            Text(kind.blurb)
-                                .font(.caption)
-                                .foregroundColor(GC.onLeatherDim)
-                        }
-                        Spacer()
+            VStack(spacing: 0) {
+                GCHeader(kind.title) {
+                    HeaderButton(symbol: "book") {
+                        showRules = true
                     }
-                    .padding(14)
-                    .background(LeatherBackground(corner: 18))
+                }
+                ScrollView {
+                    VStack(spacing: 14) {
+                        HStack(spacing: 14) {
+                            GameTile(kind: kind, size: 56)
+                            Text(kind.blurb)
+                                .font(.subheadline)
+                                .foregroundColor(GC.onFelt)
+                            Spacer()
+                        }
 
-                    VStack(spacing: 10) {
-                        HStack {
-                            Text("How many players?")
+                        VStack(spacing: 10) {
+                            HStack {
+                                Text("How many players?")
+                                    .font(.subheadline.bold())
+                                    .foregroundColor(GC.text)
+                                Spacer()
+                            }
+                            HStack(spacing: 6) {
+                                ForEach(countChoices, id: \.self) { n in
+                                    Text("\(n)")
+                                        .font(.system(size: 18, weight: .heavy, design: .serif))
+                                        .foregroundColor(GC.text)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 8)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .fill(n == count ? GC.rosewater : GC.surface0)
+                                        )
+                                        .onTapGesture {
+                                            count = n
+                                        }
+                                }
+                            }
+
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                                ForEach(0..<count, id: \.self) { i in
+                                    HStack(spacing: 8) {
+                                        Text("\(i + 1)")
+                                            .font(.system(size: 13, weight: .heavy, design: .serif))
+                                            .foregroundColor(GC.base)
+                                            .frame(width: 24, height: 24)
+                                            .background(Circle().fill(seatColors[i]))
+                                        TextField(
+                                            "",
+                                            text: $names[i],
+                                            prompt: Text("Player \(i + 1)").foregroundColor(GC.overlay)
+                                        )
+                                        .foregroundColor(GC.text)
+                                        .textInputAutocapitalization(.words)
+                                        .autocorrectionDisabled()
+                                    }
+                                    .padding(6)
+                                    .background(RoundedRectangle(cornerRadius: 10).fill(GC.surface0))
+                                }
+                            }
+
+                            Text(partnersText)
+                                .font(.caption)
+                                .foregroundColor(GC.dim)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .panel()
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("First dealer")
                                 .font(.subheadline.bold())
                                 .foregroundColor(GC.text)
-                            Spacer()
+                            ChoiceChips(items: (0..<count).map { display($0) }, selection: $dealer, columns: min(count, 4))
+                            targetControl
                         }
-                        HStack(spacing: 6) {
-                            ForEach(countChoices, id: \.self) { n in
-                                Text("\(n)")
-                                    .font(.system(size: 18, weight: .heavy, design: .serif))
-                                    .foregroundColor(GC.text)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 8)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 10)
-                                            .fill(n == count ? GC.rosewater : GC.surface0)
-                                    )
-                                    .onTapGesture {
-                                        count = n
-                                    }
-                            }
-                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .panel()
 
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                            ForEach(0..<count, id: \.self) { i in
-                                HStack(spacing: 8) {
-                                    Text("\(i + 1)")
-                                        .font(.system(size: 13, weight: .heavy, design: .serif))
-                                        .foregroundColor(GC.base)
-                                        .frame(width: 24, height: 24)
-                                        .background(Circle().fill(seatColors[i]))
-                                    TextField(
-                                        "",
-                                        text: $names[i],
-                                        prompt: Text("Player \(i + 1)").foregroundColor(GC.overlay)
-                                    )
-                                    .foregroundColor(GC.text)
-                                    .textInputAutocapitalization(.words)
-                                    .autocorrectionDisabled()
-                                }
-                                .padding(6)
-                                .background(RoundedRectangle(cornerRadius: 10).fill(GC.surface0))
-                            }
+                        Button {
+                            start()
+                        } label: {
+                            Label("Start game", systemImage: "play.fill")
+                                .frame(maxWidth: .infinity)
                         }
-
-                        Text(partnersText)
-                            .font(.caption)
-                            .foregroundColor(GC.dim)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        .buttonStyle(GlossButtonStyle())
                     }
-                    .panel()
-
-                    VStack(spacing: 8) {
-                        HStack {
-                            Text("First dealer")
-                                .foregroundColor(GC.text)
-                            Spacer()
-                            Picker("First dealer", selection: $dealer) {
-                                ForEach(0..<count, id: \.self) { i in
-                                    Text(display(i)).tag(i)
-                                }
-                            }
-                            .pickerStyle(.menu)
-                            .tint(GC.rosewater)
-                        }
-                        targetControl
-                    }
-                    .panel()
-
-                    Button {
-                        start()
-                    } label: {
-                        Label("Start game", systemImage: "play.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(GlossButtonStyle())
+                    .padding(16)
                 }
-                .padding(16)
             }
+            .background(FeltBackground())
         }
-        .gcTitle(kind.title)
         .gcNavigation()
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showRules = true
-                } label: {
-                    Image(systemName: "book")
-                }
-            }
-        }
-        .sheet(isPresented: $showRules) {
+        .fullScreenCover(isPresented: $showRules) {
             RulesSheet(kind: kind, players: count)
         }
         .navigationDestination(item: $started) { id in
@@ -280,37 +263,30 @@ struct GameHomeView: View {
     private var targetControl: some View {
         switch kind {
         case .hearts:
-            Stepper(value: $target, in: 50...200, step: 10) {
-                Text("Game ends at \(target) points").foregroundColor(GC.text)
-            }
+            FlatStepper(label: "Game ends at \(target) points", value: $target, range: 50...200, step: 10)
         case .cribbage:
-            Picker("Play to", selection: $target) {
-                Text("121 (long)").tag(121)
-                Text("61 (short)").tag(61)
-            }
-            .pickerStyle(.segmented)
+            ChoiceChips(
+                items: ["121 (long)", "61 (short)"],
+                selection: Binding<Int>(
+                    get: { target == 61 ? 1 : 0 },
+                    set: { target = $0 == 1 ? 61 : 121 }
+                ),
+                columns: 2
+            )
         case .highLowJack:
-            Stepper(value: $target, in: 5...21) {
-                Text("First to \(target)").foregroundColor(GC.text)
-            }
+            FlatStepper(label: "First to \(target)", value: $target, range: 5...21)
         case .spades:
-            Stepper(value: $target, in: 100...1000, step: 50) {
-                Text("First to \(target)").foregroundColor(GC.text)
-            }
+            FlatStepper(label: "First to \(target)", value: $target, range: 100...1000, step: 50)
         case .euchre:
-            Stepper(value: $target, in: 5...15) {
-                Text("First to \(target)").foregroundColor(GC.text)
-            }
+            FlatStepper(label: "First to \(target)", value: $target, range: 5...15)
         case .ohHell:
             Text("Plays \(GameRules.ohHellMax(count) * 2 - 1) rounds, highest score wins.")
                 .font(.subheadline)
                 .foregroundColor(GC.dim)
-                .frame(maxWidth: .infinity, alignment: .leading)
         case .war:
             Text("Last player holding cards wins.")
                 .font(.subheadline)
                 .foregroundColor(GC.dim)
-                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

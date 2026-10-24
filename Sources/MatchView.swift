@@ -1,5 +1,9 @@
 import SwiftUI
 
+enum MatchOverlay {
+    case menu, winner, delete, dealer
+}
+
 struct MatchView: View {
     let matchID: UUID
     @EnvironmentObject var store: Store
@@ -7,8 +11,7 @@ struct MatchView: View {
 
     @State private var showRules = false
     @State private var showHistory = false
-    @State private var showWinnerPicker = false
-    @State private var confirmDelete = false
+    @State private var overlay: MatchOverlay? = nil
 
     private var match: GameMatch? {
         return store.matches.first { $0.id == matchID }
@@ -16,86 +19,124 @@ struct MatchView: View {
 
     var body: some View {
         ZStack {
-            FeltBackground()
-            if let m = match {
-                content(m)
-            } else {
-                Text("This game was removed.")
-                    .foregroundColor(GC.onFelt)
+            VStack(spacing: 0) {
+                GCHeader(match?.kind.title ?? "Game") {
+                    HeaderButton(symbol: "book") {
+                        showRules = true
+                    }
+                    HeaderButton(symbol: "ellipsis.circle") {
+                        overlay = .menu
+                    }
+                }
+                ZStack {
+                    if let m = match {
+                        content(m)
+                    } else {
+                        Text("This game was removed.")
+                            .foregroundColor(GC.onFelt)
+                    }
+                }
+                .frame(maxHeight: .infinity)
+            }
+            .background(FeltBackground())
+
+            if overlay != nil {
+                FlatMenuOverlay(title: overlayTitle, actions: overlayActions, close: { overlay = nil })
             }
         }
-        .gcTitle(match?.kind.title ?? "Game")
         .gcNavigation()
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showRules = true
-                } label: {
-                    Image(systemName: "book")
-                }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    if let m = match, m.kind != .cribbage && m.kind != .war {
-                        Button {
-                            showHistory = true
-                        } label: {
-                            Label("Round history", systemImage: "list.bullet")
-                        }
-                    }
-                    if let m = match, !m.finished {
-                        Button {
-                            showWinnerPicker = true
-                        } label: {
-                            Label("Declare winner…", systemImage: "trophy")
-                        }
-                    }
-                    Button(role: .destructive) {
-                        confirmDelete = true
-                    } label: {
-                        Label("Delete game", systemImage: "trash")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
-            }
-        }
-        .sheet(isPresented: $showRules) {
+        .fullScreenCover(isPresented: $showRules) {
             if let m = match {
                 RulesSheet(kind: m.kind, players: m.names.count)
             }
         }
-        .sheet(isPresented: $showHistory) {
+        .fullScreenCover(isPresented: $showHistory) {
             HistorySheet(matchID: matchID)
                 .environmentObject(store)
         }
-        .confirmationDialog("Who won?", isPresented: $showWinnerPicker, titleVisibility: .visible) {
-            if let m = match {
-                ForEach(Array(m.units.enumerated()), id: \.offset) { item in
-                    Button(item.element.name) {
-                        store.finish(matchID, winners: [item.offset])
+    }
+
+    private var overlayTitle: String {
+        switch overlay {
+        case .winner: return "Who won?"
+        case .delete: return "Delete this game?"
+        case .dealer: return "Who deals?"
+        default: return ""
+        }
+    }
+
+    private var overlayActions: [FlatAction] {
+        guard let m = match else { return [] }
+        switch overlay {
+        case .menu:
+            var list: [FlatAction] = []
+            if m.kind == .cribbage && !m.finished {
+                list.append(FlatAction(title: "Undo last peg move") {
+                    store.mutate(matchID) { mm in
+                        if let last = mm.pegHistory.last {
+                            mm.pegs = last
+                            mm.pegHistory.removeLast()
+                        }
+                    }
+                })
+                list.append(FlatAction(title: "Reset the board", destructive: true) {
+                    store.mutate(matchID) { mm in
+                        mm.pegs = Array(repeating: Peg(), count: mm.names.count)
+                        mm.pegHistory = []
+                    }
+                })
+            }
+            if m.kind != .cribbage && m.kind != .war {
+                list.append(FlatAction(title: "Round history") {
+                    showHistory = true
+                })
+            }
+            if !m.finished {
+                list.append(FlatAction(title: "Declare winner…") {
+                    overlay = .winner
+                })
+            }
+            list.append(FlatAction(title: "Delete game", destructive: true) {
+                overlay = .delete
+            })
+            return list
+        case .winner:
+            return m.units.enumerated().map { item in
+                FlatAction(title: item.element.name) {
+                    store.finish(matchID, winners: [item.offset])
+                }
+            }
+        case .delete:
+            return [
+                FlatAction(title: "Delete", destructive: true) {
+                    store.delete(matchID)
+                    dismiss()
+                }
+            ]
+        case .dealer:
+            return m.names.enumerated().map { item in
+                FlatAction(title: item.element) {
+                    store.mutate(matchID) { mm in
+                        mm.dealer = item.offset
                     }
                 }
             }
-        }
-        .confirmationDialog("Delete this game?", isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Delete", role: .destructive) {
-                store.delete(matchID)
-                dismiss()
-            }
+        case nil:
+            return []
         }
     }
 
     @ViewBuilder
     private func content(_ m: GameMatch) -> some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             ScoreStrip(m: m)
-            DealerBar(m: m, matchID: matchID)
+            DealerBar(m: m, matchID: matchID, onChangeDealer: { overlay = .dealer })
             banner(m)
             switch m.kind {
             case .cribbage:
                 CribbageBoardView(matchID: matchID)
-                    .panel()
+                    .padding(6)
+                    .background(RoundedRectangle(cornerRadius: 14).fill(GC.mantle))
                     .frame(maxHeight: .infinity)
             case .war:
                 ScrollView {
@@ -112,6 +153,7 @@ struct MatchView: View {
             }
         }
         .padding(.horizontal, 12)
+        .padding(.top, 8)
         .padding(.bottom, 8)
     }
 
@@ -183,52 +225,58 @@ struct HistorySheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if let m = match {
-                    let reversed = Array(m.rounds.enumerated().reversed())
-                    List {
-                        if reversed.isEmpty {
-                            Text("No rounds yet")
-                                .foregroundColor(GC.dim)
-                        }
-                        ForEach(reversed, id: \.element.id) { item in
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Round \(item.offset + 1)")
-                                    .font(.subheadline.bold())
-                                    .foregroundColor(GC.text)
-                                Text(summary(m, item.element))
-                                    .font(.caption)
-                                    .foregroundColor(GC.text)
-                                if !item.element.detail.isEmpty {
-                                    Text(item.element.detail)
-                                        .font(.caption2)
-                                        .foregroundColor(GC.dim)
-                                }
-                            }
+        VStack(spacing: 0) {
+            GCHeader("Round history", showBack: false) {
+                Button {
+                    dismiss()
+                } label: {
+                    Text("Done")
+                        .font(.headline)
+                        .foregroundColor(GC.onLeather)
+                        .padding(.horizontal, 6)
+                        .frame(height: 36)
+                }
+                .buttonStyle(.plain)
+            }
+            if let m = match {
+                let reversed = Array(m.rounds.enumerated().reversed())
+                List {
+                    if reversed.isEmpty {
+                        Text("No rounds yet")
+                            .foregroundColor(GC.dim)
                             .listRowBackground(GC.mantle)
-                        }
-                        .onDelete { offsets in
-                            let ids = offsets.map { reversed[$0].element.id }
-                            store.mutate(matchID) { mm in
-                                mm.rounds.removeAll { ids.contains($0.id) }
+                    }
+                    ForEach(reversed, id: \.element.id) { item in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Round \(item.offset + 1)")
+                                .font(.subheadline.bold())
+                                .foregroundColor(GC.text)
+                            Text(summary(m, item.element))
+                                .font(.caption)
+                                .foregroundColor(GC.text)
+                            if !item.element.detail.isEmpty {
+                                Text(item.element.detail)
+                                    .font(.caption2)
+                                    .foregroundColor(GC.dim)
                             }
+                        }
+                        .listRowBackground(GC.mantle)
+                    }
+                    .onDelete { offsets in
+                        let ids = offsets.map { reversed[$0].element.id }
+                        store.mutate(matchID) { mm in
+                            mm.rounds.removeAll { ids.contains($0.id) }
                         }
                     }
-                    .scrollContentBackground(.hidden)
-                } else {
-                    Text("Game not found.")
                 }
-            }
-            .background(FeltBackground())
-            .gcTitle("Round history")
-            .gcNavigation()
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
+                .scrollContentBackground(.hidden)
+            } else {
+                Text("Game not found.")
+                    .foregroundColor(GC.onFelt)
+                    .frame(maxHeight: .infinity)
             }
         }
+        .background(FeltBackground())
         .preferredColorScheme(.light)
     }
 }

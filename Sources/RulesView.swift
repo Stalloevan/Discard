@@ -1,20 +1,28 @@
 import SwiftUI
 
-/// Rules live behind the book icon. Shown as a sheet.
+/// Rules live behind the book icon. Shown full screen with our own header.
 struct RulesSheet: View {
     let kind: GameKind
     let players: Int
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
-            RulesView(kind: kind, players: players)
-                .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { dismiss() }
-                    }
+        VStack(spacing: 0) {
+            GCHeader("\(kind.title) rules", showBack: false) {
+                Button {
+                    dismiss()
+                } label: {
+                    Text("Done")
+                        .font(.headline)
+                        .foregroundColor(GC.onLeather)
+                        .padding(.horizontal, 6)
+                        .frame(height: 36)
                 }
+                .buttonStyle(.plain)
+            }
+            RulesView(kind: kind, players: players)
         }
+        .background(FeltBackground())
         .preferredColorScheme(.light)
     }
 }
@@ -35,12 +43,14 @@ struct RulesView: View {
     var body: some View {
         List {
             Section(header: Text("Players").foregroundColor(GC.onFeltDim)) {
-                Picker("Number of players", selection: $count) {
-                    ForEach(kind.minPlayers...8, id: \.self) { n in
-                        Text("\(n)").tag(n)
-                    }
-                }
-                .pickerStyle(.segmented)
+                ChoiceChips(
+                    items: (kind.minPlayers...8).map { String($0) },
+                    selection: Binding<Int>(
+                        get: { count - kind.minPlayers },
+                        set: { count = $0 + kind.minPlayers }
+                    ),
+                    columns: 8
+                )
             }
             .listRowBackground(GC.mantle)
 
@@ -83,8 +93,6 @@ struct RulesView: View {
         }
         .scrollContentBackground(.hidden)
         .background(FeltBackground())
-        .gcTitle("\(kind.title) rules")
-        .gcNavigation()
     }
 }
 
@@ -100,6 +108,15 @@ struct StatsView: View {
     }
 
     var body: some View {
+        VStack(spacing: 0) {
+            GCHeader("Games won")
+            statsList
+        }
+        .background(FeltBackground())
+        .gcNavigation()
+    }
+
+    private var statsList: some View {
         List {
             Section(header: Text("Games won").foregroundColor(GC.onFeltDim)) {
                 if playerNames.isEmpty {
@@ -150,7 +167,5 @@ struct StatsView: View {
         }
         .scrollContentBackground(.hidden)
         .background(FeltBackground())
-        .gcTitle("Games won")
-        .gcNavigation()
     }
 }

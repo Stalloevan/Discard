@@ -5,6 +5,11 @@ enum GameKind: String, Codable, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// Oh Hell is retired from the menu; the case stays so older saved games still load.
+    static var allCases: [GameKind] {
+        return [.hearts, .cribbage, .highLowJack, .war, .spades, .euchre]
+    }
+
     var title: String {
         switch self {
         case .hearts: return "Hearts"
