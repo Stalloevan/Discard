@@ -41,9 +41,11 @@ struct ScoreStrip: View {
         return VStack(spacing: 2) {
             ZStack {
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(tanColor(i))
+                    .fill(GC.base)
                 RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(isLeader ? GC.yellow : color, lineWidth: 3)
+                    .fill(color.opacity(0.22))
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(isLeader ? GC.yellow : color, lineWidth: isLeader ? 3.5 : 1.5)
                 Text("\(m.total(i))")
                     .font(.system(size: min(26, tileW * 0.44), weight: .heavy, design: .serif))
                     .foregroundColor(GC.text)

@@ -79,7 +79,9 @@ struct StampDrum: View {
             }
             ZStack {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(tanColor(seat))
+                    .fill(GC.base)
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(seatColors[((seat % 8) + 8) % 8].opacity(0.22))
                 DrumFace(pos: pos, labels: labels, step: step, radius: radius)
                 HStack {
                     Image(systemName: "arrowtriangle.right.fill")
@@ -93,7 +95,7 @@ struct StampDrum: View {
                 .padding(.horizontal, 4)
                 .allowsHitTesting(false)
                 RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(seatColors[((seat % 8) + 8) % 8], lineWidth: 3)
+                    .strokeBorder(seatColors[((seat % 8) + 8) % 8], lineWidth: 1.5)
                     .allowsHitTesting(false)
             }
             .frame(maxWidth: width ?? .infinity)
