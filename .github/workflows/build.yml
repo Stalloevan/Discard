@@ -2,12 +2,19 @@ name: Build IPA
 on:
   push:
     branches: [main]
+    paths:
+      - VERSION
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Read version
+        id: ver
+        run: echo "version=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate project
@@ -21,8 +28,13 @@ jobs:
         run: |
           mkdir Payload
           cp -R build/Build/Products/Release-iphoneos/Discard.app Payload/
-          zip -r Discard.ipa Payload
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Discard-ipa
-          path: Discard.ipa
+          zip -r "Discard-v${{ steps.ver.outputs.version }}.ipa" Payload
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ steps.ver.outputs.version }}" \
+            "Discard-v${{ steps.ver.outputs.version }}.ipa" \
+            --title "Discard v${{ steps.ver.outputs.version }}" \
+            --notes "Unsigned IPA. Sign with Signulous and install with Feather." \
+            --target "${{ github.sha }}"
