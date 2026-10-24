@@ -20,6 +20,7 @@ struct RulesSheet: View {
                 }
                 .buttonStyle(.plain)
             }
+            .icon(kind)
             RulesView(kind: kind, players: players)
         }
         .background(FeltBackground())

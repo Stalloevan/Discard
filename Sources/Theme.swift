@@ -261,7 +261,15 @@ struct GCHeader<Trailing: View>: View {
     var showBack: Bool
     let trailing: Trailing
     var below: AnyView? = nil
+    var kind: GameKind? = nil
     @Environment(\.dismiss) private var dismiss
+
+    /// Show this game's icon instead of the app icon.
+    func icon(_ k: GameKind) -> GCHeader {
+        var copy = self
+        copy.kind = k
+        return copy
+    }
 
     init(_ title: String, showBack: Bool = true, @ViewBuilder trailing: () -> Trailing) {
         self.title = title
@@ -291,11 +299,15 @@ struct GCHeader<Trailing: View>: View {
                 }
                 .buttonStyle(.plain)
             }
-            Image("HeaderIcon")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 32, height: 32)
-                .clipShape(RoundedRectangle(cornerRadius: 7))
+            if let k = kind {
+                GameTile(kind: k, size: 32)
+            } else {
+                Image("HeaderIcon")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 32, height: 32)
+                    .clipShape(RoundedRectangle(cornerRadius: 7))
+            }
             Text(title.uppercased())
                 .font(.system(size: 19, weight: .heavy, design: .serif))
                 .tracking(1.5)

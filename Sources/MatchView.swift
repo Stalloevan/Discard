@@ -31,6 +31,7 @@ struct MatchView: View {
                     } below: {
                         ScoreStrip(m: m)
                     }
+                    .icon(m.kind)
                 } else {
                     GCHeader("Game")
                 }

@@ -47,8 +47,8 @@ struct ContentView: View {
 
                             if !active.isEmpty {
                                 VStack(alignment: .leading, spacing: 10) {
-                                    Text("IN PROGRESS · swipe left to delete")
-                                        .font(.system(size: 12, weight: .heavy, design: .serif))
+                                    Text("IN PROGRESS")
+                                        .font(.system(size: 13, weight: .heavy, design: .serif))
                                         .tracking(1.5)
                                         .foregroundColor(GC.dim)
                                     ForEach(active) { m in
@@ -146,6 +146,7 @@ struct GameHomeView: View {
                         showRules = true
                     }
                 }
+                .icon(kind)
                 ScrollView {
                     VStack(spacing: 14) {
                         HStack(spacing: 14) {

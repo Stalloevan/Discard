@@ -143,6 +143,14 @@ struct PegBoard: View {
     private func register() {
         let range = visibleRange(pegs)
         let now = Date().timeIntervalSinceReferenceDate
+        // A cleared board replays everything; otherwise holes that left the view will play again when they return.
+        let cleared = pegs.allSatisfy { $0.front == 0 && $0.back == 0 }
+        if cleared {
+            starts = [:]
+            animEnd = 0
+        } else {
+            starts = starts.filter { $0.key >= range.0 && $0.key <= range.1 }
+        }
         let base = max(now, animEnd)
         var order = 0
         for idx in range.0...range.1 where starts[idx] == nil {
@@ -191,7 +199,7 @@ struct PegBoard: View {
             .onAppear {
                 register()
             }
-            .onChange(of: range.0 * 1000 + range.1) { _, _ in
+            .onChange(of: range.0 * 1000 + range.1 + (pegs.allSatisfy { $0.front == 0 && $0.back == 0 } ? 100000 : 0)) { _, _ in
                 register()
             }
         }
