@@ -102,7 +102,8 @@ struct MatchView: View {
                 })
             }
             list.append(FlatAction(title: "Delete game", destructive: true) {
-                overlay = .delete
+                store.delete(matchID)
+                dismiss()
             })
             return list
         case .winner:

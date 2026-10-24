@@ -2,7 +2,6 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var store: Store
-    @State private var pendingDelete: UUID? = nil
 
     private var active: [GameMatch] {
         return store.matches.filter { !$0.finished }
@@ -54,7 +53,9 @@ struct ContentView: View {
                                         .foregroundColor(GC.dim)
                                     ForEach(active) { m in
                                         SwipeDeleteRow(onDelete: {
-                                            pendingDelete = m.id
+                                            withAnimation {
+                                                store.delete(m.id)
+                                            }
                                         }) {
                                             NavigationLink(value: m.id) {
                                                 HStack(spacing: 10) {
@@ -87,18 +88,6 @@ struct ContentView: View {
                     }
                 }
                 .background(FeltBackground())
-
-                if let id = pendingDelete {
-                    FlatMenuOverlay(
-                        title: "Delete this game?",
-                        actions: [
-                            FlatAction(title: "Delete", destructive: true) {
-                                store.delete(id)
-                            }
-                        ],
-                        close: { pendingDelete = nil }
-                    )
-                }
             }
             .gcNavigation()
             .navigationDestination(for: GameKind.self) { kind in

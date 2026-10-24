@@ -10,10 +10,10 @@ struct SnakeGeo {
     let count: Int
     let lo: Int
     let hi: Int
-    let top: CGFloat = 20
+    let top: CGFloat = 4
     let bottom: CGFloat = 4
     let side: CGFloat = 2
-    let perRow: Int
+    let perRow: Int = 5
     let rowCount: Int
 
     init(size: CGSize, count: Int, lo: Int, hi: Int) {
@@ -21,22 +21,7 @@ struct SnakeGeo {
         self.count = count
         self.lo = lo
         self.hi = hi
-        let n = max(count, 1)
-        let laneW = (size.width - 4) / CGFloat(n) - 6
-        let h = size.height - 24
-        let total = hi - lo + 1
-        var best = 2
-        var bestScore: CGFloat = 0
-        for k in 2...14 {
-            let r = Int((Double(total) / Double(k)).rounded(.up))
-            let cell = min(laneW / CGFloat(k), h / CGFloat(max(r, 1)))
-            if cell > bestScore + 0.5 {
-                bestScore = cell
-                best = k
-            }
-        }
-        self.perRow = best
-        self.rowCount = Int((Double(total) / Double(best)).rounded(.up))
+        self.rowCount = Int((Double(hi - lo + 1) / 5.0).rounded(.up))
     }
 
     var laneWidth: CGFloat {
@@ -148,14 +133,42 @@ struct PegBoard: View {
     @State private var dragPlayer: Int? = nil
     @State private var dragWhich: Int = 0
     @State private var dragHole: Int = 0
+    @State private var starts: [Int: Double] = [:]
+    @State private var animEnd: Double = 0
+    @State private var animating = true
+
+    /// New holes (and the bit of track leading to each) arrive one at a time.
+    private func register() {
+        let range = visibleRange(pegs)
+        let now = Date().timeIntervalSinceReferenceDate
+        let base = max(now, animEnd)
+        var order = 0
+        for idx in range.0...range.1 where starts[idx] == nil {
+            starts[idx] = base + Double(order) * 0.05
+            order += 1
+        }
+        if order > 0 {
+            let end = base + Double(order) * 0.05 + 0.45
+            animEnd = end
+            animating = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + (end - now) + 0.1) {
+                if Date().timeIntervalSinceReferenceDate >= animEnd {
+                    animating = false
+                }
+            }
+        }
+    }
 
     var body: some View {
         GeometryReader { geo in
             let range = visibleRange(pegs)
             let g = SnakeGeo(size: geo.size, count: pegs.count, lo: range.0, hi: range.1)
             ZStack(alignment: .topLeading) {
-                Canvas { ctx, sz in
-                    drawBoard(ctx: &ctx, g: g)
+                TimelineView(.animation(minimumInterval: nil, paused: !animating)) { tl in
+                    let now = animating ? tl.date.timeIntervalSinceReferenceDate : Double.infinity
+                    Canvas { ctx, sz in
+                        drawBoard(ctx: &ctx, g: g, now: now)
+                    }
                 }
                 .frame(width: geo.size.width, height: geo.size.height)
 
@@ -173,6 +186,12 @@ struct PegBoard: View {
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .coordinateSpace(name: "board")
+            .onAppear {
+                register()
+            }
+            .onChange(of: range.0 * 1000 + range.1) { _, _ in
+                register()
+            }
         }
     }
 
@@ -286,7 +305,14 @@ struct PegBoard: View {
         .allowsHitTesting(false)
     }
 
-    private func drawBoard(ctx: inout GraphicsContext, g: SnakeGeo) {
+    /// 0 before a piece's moment, 1 once it has settled.
+    private func progress(_ idx: Int, _ now: Double) -> Double {
+        guard let t0 = starts[idx] else { return 0 }
+        if now == Double.infinity { return 1 }
+        return min(max((now - t0) / 0.4, 0), 1)
+    }
+
+    private func drawBoard(ctx: inout GraphicsContext, g: SnakeGeo, now: Double) {
         let n = pegs.count
         if n == 0 { return }
         let dot = g.holeRadius
@@ -294,37 +320,50 @@ struct PegBoard: View {
         for p in 0..<n {
             let color = seatColors[p % 8]
             let x0 = g.side + g.laneWidth * CGFloat(p) + 2
-            let rect = CGRect(x: x0, y: g.top - 4, width: g.laneWidth - 4, height: g.size.height - g.top - g.bottom + 8)
+            let rect = CGRect(x: x0, y: 0, width: g.laneWidth - 4, height: g.size.height)
             ctx.fill(Path(roundedRect: rect, cornerRadius: 10), with: .color(color.opacity(0.16)))
             ctx.stroke(Path(roundedRect: rect, cornerRadius: 10), with: .color(color.opacity(0.6)), lineWidth: 1)
 
-            let label = Text(String(names[p].prefix(5)))
-                .font(.system(size: 12, weight: .heavy, design: .serif))
-                .foregroundColor(GC.text)
-            ctx.draw(label, at: CGPoint(x: g.laneCenter(p), y: 9))
-
-            // The S-shaped track
-            var track = Path()
-            track.move(to: g.point(p, g.lo))
-            for idx in (g.lo + 1)...g.hi {
-                track.addLine(to: g.point(p, idx))
+            // The S-shaped track: each piece swings down from a slight angle and levels out
+            if g.hi > g.lo {
+                for idx in (g.lo + 1)...g.hi {
+                    let pr = progress(idx, now)
+                    if pr <= 0 { continue }
+                    let e = 1 - pow(1 - pr, 3)
+                    let a = g.point(p, idx - 1)
+                    let b = g.point(p, idx)
+                    let theta = (1 - e) * 0.6
+                    let dx = b.x - a.x
+                    let dy = b.y - a.y
+                    let rx = dx * cos(theta) - dy * sin(theta)
+                    let ry = dx * sin(theta) + dy * cos(theta)
+                    var seg = Path()
+                    seg.move(to: a)
+                    seg.addLine(to: CGPoint(x: a.x + rx, y: a.y + ry - (1 - e) * 6))
+                    ctx.stroke(
+                        seg,
+                        with: .color(color.opacity(0.35 * min(1, pr * 2))),
+                        style: StrokeStyle(lineWidth: max(dot, 2), lineCap: .round)
+                    )
+                }
             }
-            ctx.stroke(track, with: .color(color.opacity(0.35)), style: StrokeStyle(lineWidth: max(dot, 2), lineCap: .round, lineJoin: .round))
 
             for idx in g.lo...g.hi {
+                let pr = progress(idx, now)
+                if pr <= 0 { continue }
+                let e = 1 - pow(1 - pr, 3)
                 let pt = g.point(p, idx)
-                let special = idx == 61 || idx == 91 || idx == 121
+                let lift = CGFloat(1 - e) * max(g.cellH, 14) * 0.9
                 let five = idx % 5 == 0
-                let r: CGFloat = special ? dot * 1.2 : dot
-                let dotRect = CGRect(x: pt.x - r, y: pt.y - r, width: 2 * r, height: 2 * r)
-                var c: Color = five ? GC.dim : GC.surface1
-                if special { c = GC.red }
-                ctx.fill(Path(ellipseIn: dotRect), with: .color(c))
+                let c: Color = five ? GC.dim : GC.surface1
+                let center = CGPoint(x: pt.x, y: pt.y - lift)
+                let dotRect = CGRect(x: center.x - dot, y: center.y - dot, width: 2 * dot, height: 2 * dot)
+                ctx.fill(Path(ellipseIn: dotRect), with: .color(c.opacity(min(1, pr * 2))))
                 if five && dot >= 6 {
                     let t = Text("\(idx)")
                         .font(.system(size: min(dot * 1.1, 10), weight: .bold))
                         .foregroundColor(GC.base)
-                    ctx.draw(t, at: pt)
+                    ctx.draw(t, at: center)
                 }
             }
         }
