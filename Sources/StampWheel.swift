@@ -24,8 +24,7 @@ struct DrumFace: View, Animatable {
                 let label = labels[i]
                 Text(label)
                     .font(.system(size: label.count > 3 ? step * 0.6 : step * 1.0, weight: .black, design: .serif))
-                    .foregroundColor(Color(white: 0.10))
-                    .shadow(color: Color.white.opacity(0.7), radius: 0, x: 0, y: 1)
+                    .foregroundColor(GC.text)
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
                     .padding(.horizontal, 10)
@@ -45,11 +44,13 @@ struct StampDrum: View {
     @Binding var selection: Int
     var width: CGFloat?
     var height: CGFloat
+    var seat: Int = 0
 
     @State private var pos: Double
     @State private var dragBase: Int? = nil
 
-    init(title: String, labels: [String], selection: Binding<Int>, width: CGFloat? = 72, height: CGFloat = 112) {
+    init(title: String, labels: [String], selection: Binding<Int>, width: CGFloat? = 72, height: CGFloat = 112, seat: Int = 0) {
+        self.seat = seat
         self.title = title
         self.labels = labels
         self._selection = selection
@@ -80,36 +81,28 @@ struct StampDrum: View {
                 knurl
                 ZStack {
                     Rectangle()
-                        .fill(LinearGradient(
-                            colors: [Color(white: 0.55), GC.cream, Color.white, GC.cream, Color(white: 0.50)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ))
+                        .fill(tanColor(seat))
                     DrumFace(pos: pos, labels: labels, step: step, radius: radius)
-                    LinearGradient(
-                        stops: [
-                            Gradient.Stop(color: Color.black.opacity(0.6), location: 0.0),
-                            Gradient.Stop(color: Color.clear, location: 0.32),
-                            Gradient.Stop(color: Color.clear, location: 0.68),
-                            Gradient.Stop(color: Color.black.opacity(0.6), location: 1.0)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
+                    VStack {
+                        Rectangle().fill(GC.text.opacity(0.18)).frame(height: 1)
+                        Spacer()
+                        Rectangle().fill(GC.text.opacity(0.18)).frame(height: 1)
+                    }
+                    .padding(.vertical, height * 0.14)
                     .allowsHitTesting(false)
                     // Reading line
                     Rectangle()
-                        .fill(Color.red.opacity(0.55))
+                        .fill(GC.red.opacity(0.7))
                         .frame(height: 1)
                         .allowsHitTesting(false)
                     HStack {
                         Image(systemName: "arrowtriangle.right.fill")
                             .font(.system(size: 9))
-                            .foregroundColor(Color.red)
+                            .foregroundColor(GC.red)
                         Spacer()
                         Image(systemName: "arrowtriangle.left.fill")
                             .font(.system(size: 9))
-                            .foregroundColor(Color.red)
+                            .foregroundColor(GC.red)
                     }
                     .padding(.horizontal, 2)
                     .allowsHitTesting(false)
@@ -119,19 +112,8 @@ struct StampDrum: View {
             }
             .frame(maxWidth: width ?? .infinity)
             .frame(height: height)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(LinearGradient(colors: [Color(white: 0.80), Color(white: 0.30)], startPoint: .top, endPoint: .bottom))
-            )
+            .background(RoundedRectangle(cornerRadius: 12).fill(seatColors[((seat % 8) + 8) % 8]))
             .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(
-                        LinearGradient(colors: [Color(white: 0.95), Color(white: 0.30), Color(white: 0.75)], startPoint: .top, endPoint: .bottom),
-                        lineWidth: 2.5
-                    )
-            )
-            .shadow(color: Color.black.opacity(0.5), radius: 4, x: 0, y: 3)
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 1)
@@ -176,20 +158,13 @@ struct StampDrum: View {
     /// Ribbed thumb edge on the side of the drum.
     private var knurl: some View {
         Canvas { ctx, size in
-            ctx.fill(
-                Path(CGRect(origin: .zero, size: size)),
-                with: .linearGradient(
-                    Gradient(colors: [Color(white: 0.85), Color(white: 0.35)]),
-                    startPoint: CGPoint(x: 0, y: 0),
-                    endPoint: CGPoint(x: size.width, y: 0)
-                )
-            )
+            ctx.fill(Path(CGRect(origin: .zero, size: size)), with: .color(seatColors[((seat % 8) + 8) % 8]))
             var y: CGFloat = 2
             while y < size.height {
                 var p = Path()
                 p.move(to: CGPoint(x: 1, y: y))
                 p.addLine(to: CGPoint(x: size.width - 1, y: y))
-                ctx.stroke(p, with: .color(Color.black.opacity(0.45)), lineWidth: 1)
+                ctx.stroke(p, with: .color(Color.black.opacity(0.28)), lineWidth: 1)
                 y += 4
             }
         }
@@ -203,6 +178,7 @@ struct StampWheel: View {
     let range: ClosedRange<Int>
     var width: CGFloat? = 72
     var height: CGFloat = 112
+    var seat: Int = 0
 
     var body: some View {
         let labels: [String] = range.map { String($0) }
@@ -214,7 +190,8 @@ struct StampWheel: View {
                 set: { value = $0 + range.lowerBound }
             ),
             width: width,
-            height: height
+            height: height,
+            seat: seat
         )
         .onChange(of: range.upperBound) { _, newUpper in
             if value > newUpper { value = newUpper }

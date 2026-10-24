@@ -20,7 +20,7 @@ struct WarPanel: View {
                     Spacer()
                     Text("\(held) / \(total)")
                         .font(.subheadline.bold())
-                        .foregroundColor(held == total ? Color.green : GC.gold)
+                        .foregroundColor(held == total ? GC.green : GC.dim)
                         .monospacedDigit()
                 }
                 DrumPad(
@@ -48,7 +48,7 @@ struct WarPanel: View {
                         mm.cards = Array(repeating: GameRules.warPer(mm.names.count), count: mm.names.count)
                     }
                 }
-                .buttonStyle(GlossButtonStyle(tint: Color.gray, compact: true))
+                .buttonStyle(GlossButtonStyle(tint: GC.surface1, compact: true))
             }
         }
     }

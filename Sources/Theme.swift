@@ -1,29 +1,55 @@
 import SwiftUI
 
-// Look: flat green felt table, burgundy stitched leather, embossed serif lettering,
-// rounded app-icon tiles. (Modernised from the original Game Center.)
+// Flat Catppuccin Latte. No gradients, no shadows.
+// Leather elements use a real CC0 leather photo (Poly Haven), tinted to Rosewater at build time.
+
+extension Color {
+    init(hex: UInt32) {
+        self.init(
+            red: Double((hex >> 16) & 0xFF) / 255.0,
+            green: Double((hex >> 8) & 0xFF) / 255.0,
+            blue: Double(hex & 0xFF) / 255.0
+        )
+    }
+}
 
 enum GC {
-    static let felt = Color(red: 0.23, green: 0.42, blue: 0.31)
-    static let feltDark = Color(red: 0.12, green: 0.26, blue: 0.18)
-    static let leather = Color(red: 0.50, green: 0.15, blue: 0.26)
-    static let leatherDark = Color(red: 0.31, green: 0.08, blue: 0.16)
-    static let button = Color(red: 0.60, green: 0.19, blue: 0.32)
-    static let gold = Color(red: 0.96, green: 0.80, blue: 0.46)
-    static let cream = Color(red: 0.97, green: 0.94, blue: 0.86)
-    static let dim = Color.white.opacity(0.68)
+    // Latte neutrals
+    static let base = Color(hex: 0xEFF1F5)
+    static let mantle = Color(hex: 0xE6E9EF)
+    static let crust = Color(hex: 0xDCE0E8)
+    static let surface0 = Color(hex: 0xCCD0DA)
+    static let surface1 = Color(hex: 0xBCC0CC)
+    static let overlay = Color(hex: 0x9CA0B0)
+    static let text = Color(hex: 0x4C4F69)
+    static let dim = Color(hex: 0x6C6F85)
+
+    // Latte accents
+    static let rosewater = Color(hex: 0xDC8A78)
+    static let red = Color(hex: 0xD20F39)
+    static let green = Color(hex: 0x40A02B)
+    static let yellow = Color(hex: 0xDF8E1D)
+    static let blue = Color(hex: 0x1E66F5)
+
+    // Roles
+    static let button = rosewater
+    static let gold = yellow
+    static let cream = base
+    static let leatherFallback = Color(hex: 0xB26C5E)
+    static let onLeather = base
+    static let onLeatherDim = Color(hex: 0xEFF1F5).opacity(0.8)
 }
 
 extension GameKind {
     var color: Color {
         switch self {
-        case .hearts: return Color(red: 0.86, green: 0.22, blue: 0.27)
-        case .cribbage: return Color(red: 0.88, green: 0.56, blue: 0.18)
-        case .highLowJack: return Color(red: 0.56, green: 0.33, blue: 0.80)
-        case .war: return Color(red: 0.42, green: 0.50, blue: 0.60)
-        case .spades: return Color(red: 0.16, green: 0.40, blue: 0.84)
-        case .ohHell: return Color(red: 0.90, green: 0.36, blue: 0.60)
-        case .euchre: return Color(red: 0.12, green: 0.60, blue: 0.58)
+        case .hearts: return Color(hex: 0xD20F39)
+        case .cribbage: return Color(hex: 0xFE640B)
+        case .highLowJack: return Color(hex: 0x8839EF)
+        case .war: return Color(hex: 0x7287FD)
+        case .spades: return Color(hex: 0x1E66F5)
+        case .ohHell: return Color(hex: 0xEA76CB)
+        case .euchre: return Color(hex: 0x179299)
         }
     }
 
@@ -34,44 +60,25 @@ extension GameKind {
 
 struct FeltBackground: View {
     var body: some View {
-        ZStack {
-            RadialGradient(colors: [GC.felt, GC.feltDark], center: .top, startRadius: 40, endRadius: 800)
-            Canvas { ctx, size in
-                var x: CGFloat = -size.height
-                while x < size.width {
-                    var p = Path()
-                    p.move(to: CGPoint(x: x, y: 0))
-                    p.addLine(to: CGPoint(x: x + size.height, y: size.height))
-                    ctx.stroke(p, with: .color(Color.black.opacity(0.05)), lineWidth: 1)
-                    var q = Path()
-                    q.move(to: CGPoint(x: x + size.height, y: 0))
-                    q.addLine(to: CGPoint(x: x, y: size.height))
-                    ctx.stroke(q, with: .color(Color.white.opacity(0.025)), lineWidth: 1)
-                    x += 3
-                }
-            }
-        }
-        .ignoresSafeArea()
+        GC.base.ignoresSafeArea()
     }
 }
 
-/// Burgundy leather with a stitched gold border.
+/// Rosewater leather: the tinted photo texture with flat stitching.
 struct LeatherBackground: View {
     var corner: CGFloat = 16
 
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: corner)
-                .fill(LinearGradient(colors: [GC.leather, GC.leatherDark], startPoint: .top, endPoint: .bottom))
-            RoundedRectangle(cornerRadius: corner)
-                .fill(RadialGradient(colors: [Color.white.opacity(0.14), Color.clear], center: .top, startRadius: 0, endRadius: 240))
-            RoundedRectangle(cornerRadius: corner)
-                .stroke(Color.black.opacity(0.55), lineWidth: 1)
+                .fill(GC.leatherFallback)
+            Image("Leather")
+                .resizable(resizingMode: .tile)
+                .clipShape(RoundedRectangle(cornerRadius: corner))
             RoundedRectangle(cornerRadius: max(corner - 5, 2))
                 .inset(by: 5)
-                .strokeBorder(GC.gold.opacity(0.6), style: StrokeStyle(lineWidth: 1.2, dash: [5, 3]))
+                .strokeBorder(GC.onLeather.opacity(0.75), style: StrokeStyle(lineWidth: 1.3, dash: [5, 3]))
         }
-        .shadow(color: Color.black.opacity(0.4), radius: 5, x: 0, y: 3)
     }
 }
 
@@ -84,23 +91,11 @@ struct GlossLabel: View {
     var body: some View {
         configuration.label
             .font(compact ? .subheadline.bold() : .headline)
-            .foregroundColor(.white)
+            .foregroundColor(GC.text)
             .padding(.horizontal, compact ? 12 : 18)
             .padding(.vertical, compact ? 6 : 10)
-            .background(
-                ZStack {
-                    Capsule()
-                        .fill(LinearGradient(colors: [tint.opacity(0.9), tint.opacity(0.65)], startPoint: .top, endPoint: .bottom))
-                    Capsule()
-                        .fill(LinearGradient(colors: [Color.white.opacity(0.28), Color.white.opacity(0.0)], startPoint: .top, endPoint: .center))
-                    Capsule()
-                        .inset(by: 3)
-                        .strokeBorder(GC.gold.opacity(0.6), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                    Capsule()
-                        .stroke(Color.black.opacity(0.45), lineWidth: 1)
-                }
-            )
-            .opacity(isEnabled ? (configuration.isPressed ? 0.75 : 1.0) : 0.4)
+            .background(Capsule().fill(tint))
+            .opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1.0) : 0.4)
     }
 }
 
@@ -121,18 +116,12 @@ struct GameTile: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: size * 0.22)
-                .fill(LinearGradient(colors: [kind.color.opacity(0.85), kind.color.opacity(0.95)], startPoint: .top, endPoint: .bottom))
-            RoundedRectangle(cornerRadius: size * 0.22)
-                .fill(LinearGradient(colors: [Color.white.opacity(0.38), Color.white.opacity(0.0)], startPoint: .top, endPoint: .center))
-            RoundedRectangle(cornerRadius: size * 0.22)
-                .stroke(Color.white.opacity(0.45), lineWidth: 1)
+                .fill(kind.color)
             Image(systemName: kind.symbol)
                 .font(.system(size: size * 0.42, weight: .semibold))
-                .foregroundColor(.white)
-                .shadow(color: Color.black.opacity(0.35), radius: 1, x: 0, y: 1)
+                .foregroundColor(GC.base)
         }
         .frame(width: size, height: size)
-        .shadow(color: Color.black.opacity(0.45), radius: 4, x: 0, y: 3)
     }
 }
 
@@ -143,39 +132,38 @@ struct LogoTile: View {
     private func quad(_ symbol: String, _ color: Color) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: size * 0.1)
-                .fill(LinearGradient(colors: [color.opacity(0.9), color], startPoint: .top, endPoint: .bottom))
+                .fill(color)
             Image(systemName: symbol)
                 .font(.system(size: size * 0.24, weight: .bold))
-                .foregroundColor(.white)
+                .foregroundColor(GC.base)
         }
     }
 
     var body: some View {
         VStack(spacing: size * 0.04) {
             HStack(spacing: size * 0.04) {
-                quad("suit.spade.fill", Color(red: 0.16, green: 0.40, blue: 0.84))
-                quad("suit.heart.fill", Color(red: 0.86, green: 0.22, blue: 0.27))
+                quad("suit.spade.fill", Color(hex: 0x1E66F5))
+                quad("suit.heart.fill", Color(hex: 0xD20F39))
             }
             HStack(spacing: size * 0.04) {
-                quad("suit.club.fill", Color(red: 0.20, green: 0.62, blue: 0.32))
-                quad("suit.diamond.fill", Color(red: 0.92, green: 0.60, blue: 0.16))
+                quad("suit.club.fill", Color(hex: 0x40A02B))
+                quad("suit.diamond.fill", Color(hex: 0xDF8E1D))
             }
         }
         .padding(size * 0.06)
         .frame(width: size, height: size)
-        .background(RoundedRectangle(cornerRadius: size * 0.22).fill(Color(white: 0.95)))
-        .shadow(color: Color.black.opacity(0.4), radius: 3, x: 0, y: 2)
+        .background(RoundedRectangle(cornerRadius: size * 0.22).fill(GC.base))
     }
 }
 
+/// Serif lettering used on the leather banners.
 struct Embossed: ViewModifier {
     var size: CGFloat
     func body(content: Content) -> some View {
         content
             .font(.system(size: size, weight: .heavy, design: .serif))
             .tracking(1.5)
-            .foregroundColor(.white)
-            .shadow(color: Color.black.opacity(0.55), radius: 0, x: 0, y: 2)
+            .foregroundColor(GC.onLeather)
     }
 }
 
@@ -183,8 +171,7 @@ struct Panel: ViewModifier {
     func body(content: Content) -> some View {
         content
             .padding(10)
-            .background(RoundedRectangle(cornerRadius: 14).fill(Color.black.opacity(0.24)))
-            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.14), lineWidth: 1))
+            .background(RoundedRectangle(cornerRadius: 14).fill(GC.mantle))
     }
 }
 
@@ -205,9 +192,10 @@ extension View {
 
     func gcNavigation() -> some View {
         self
-            .toolbarBackground(GC.feltDark, for: .navigationBar)
+            .toolbarBackground(GC.mantle, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarColorScheme(.light, for: .navigationBar)
+            .tint(GC.rosewater)
     }
 
     func gcTitle(_ title: String) -> some View {
@@ -219,7 +207,7 @@ extension View {
                     Text(title.uppercased())
                         .font(.system(size: 17, weight: .heavy, design: .serif))
                         .tracking(1.5)
-                        .foregroundColor(.white)
+                        .foregroundColor(GC.text)
                 }
             }
     }
@@ -236,18 +224,14 @@ struct ChoiceChips: View {
             ForEach(0..<items.count, id: \.self) { i in
                 Text(items[i])
                     .font(.subheadline.bold())
-                    .foregroundColor(.white)
+                    .foregroundColor(GC.text)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 9)
                     .background(
                         RoundedRectangle(cornerRadius: 10)
-                            .fill(i == selection ? GC.button : Color.black.opacity(0.28))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(i == selection ? GC.gold : Color.white.opacity(0.15), lineWidth: i == selection ? 2 : 1)
+                            .fill(i == selection ? GC.rosewater : GC.surface0)
                     )
                     .onTapGesture {
                         selection = i

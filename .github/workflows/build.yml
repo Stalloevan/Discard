@@ -41,6 +41,23 @@ jobs:
           fi
           magick -size 1024x1024 "xc:$bg" \( icon/raw.png -resize 640x640 \) -gravity center -composite -alpha off Sources/Assets.xcassets/AppIcon.appiconset/icon-1024.png
           echo "source=$src" >> "$GITHUB_OUTPUT"
+      - name: Fetch leather texture
+        id: leather
+        run: |
+          mkdir -p tex
+          dest=Sources/Assets.xcassets/Leather.imageset/leather.jpg
+          src=""
+          if curl -fsSL -m 60 -A "Mozilla/5.0" -o tex/raw.jpg "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/brown_leather/brown_leather_albedo_1k.jpg" && magick identify tex/raw.jpg >/dev/null 2>&1; then
+            # Grayscale, compress contrast, then hard-light over Rosewater (#dc8a78) so the photo keeps its grain but takes the hue.
+            magick tex/raw.jpg -colorspace Gray -normalize +level 22%,78% tex/gray.png
+            magick -size 1024x1024 "xc:#dc8a78" tex/gray.png -compose HardLight -composite -modulate 82,105,100 -resize 512x512 -quality 88 "$dest"
+            src="Leather texture: Brown Leather by Rob Tuytel, Poly Haven (CC0), tinted Rosewater"
+          else
+            magick -size 512x512 xc:gray50 +noise Random -colorspace Gray -blur 0x1 -normalize +level 30%,70% tex/gray.png
+            magick -size 512x512 "xc:#dc8a78" tex/gray.png -compose HardLight -composite -modulate 82,105,100 -quality 88 "$dest"
+            src="Leather texture: generated fallback (download failed)"
+          fi
+          echo "source=$src" >> "$GITHUB_OUTPUT"
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate project
@@ -62,5 +79,5 @@ jobs:
           gh release create "v${{ steps.ver.outputs.version }}" \
             "Discard-v${{ steps.ver.outputs.version }}.ipa" \
             --title "Discard v${{ steps.ver.outputs.version }}" \
-            --notes "Unsigned IPA. Sign with Signulous and install with Feather. App icon: ${{ steps.icon.outputs.source }}" \
+            --notes "Unsigned IPA. Sign with Signulous and install with Feather. App icon: ${{ steps.icon.outputs.source }}. ${{ steps.leather.outputs.source }}." \
             --target "${{ github.sha }}"

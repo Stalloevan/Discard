@@ -15,7 +15,7 @@ struct RulesSheet: View {
                     }
                 }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
     }
 }
 
@@ -42,7 +42,7 @@ struct RulesView: View {
                 }
                 .pickerStyle(.segmented)
             }
-            .listRowBackground(Color.black.opacity(0.26))
+            .listRowBackground(GC.mantle)
 
             Section("Setup for \(count) players") {
                 LabeledContent("Decks", value: setup.decks)
@@ -53,7 +53,7 @@ struct RulesView: View {
                         .font(.subheadline)
                 }
             }
-            .listRowBackground(Color.black.opacity(0.26))
+            .listRowBackground(GC.mantle)
 
             Section("All player counts") {
                 ForEach(kind.minPlayers...8, id: \.self) { n in
@@ -69,7 +69,7 @@ struct RulesView: View {
                     }
                 }
             }
-            .listRowBackground(Color.black.opacity(0.26))
+            .listRowBackground(GC.mantle)
 
             ForEach(GameRules.overview(kind)) { section in
                 Section(section.title) {
@@ -78,7 +78,7 @@ struct RulesView: View {
                             .font(.subheadline)
                     }
                 }
-                .listRowBackground(Color.black.opacity(0.26))
+                .listRowBackground(GC.mantle)
             }
         }
         .scrollContentBackground(.hidden)
@@ -120,7 +120,7 @@ struct StatsView: View {
                     }
                 }
             }
-            .listRowBackground(Color.black.opacity(0.26))
+            .listRowBackground(GC.mantle)
 
             Section("Finished games") {
                 if finished.isEmpty {
@@ -146,7 +146,7 @@ struct StatsView: View {
                     }
                 }
             }
-            .listRowBackground(Color.black.opacity(0.26))
+            .listRowBackground(GC.mantle)
         }
         .scrollContentBackground(.hidden)
         .background(FeltBackground())

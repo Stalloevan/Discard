@@ -1,31 +1,87 @@
 import SwiftUI
 
 // MARK: Board geometry
-// Every player has one track of two vertical lanes: holes 0-60 run up the left lane,
-// holes 61-121 run back down the right lane. The whole board always fits on screen.
+// Every player has ONE long vertical lane of 121 holes (0 is the start, at the bottom).
+// Lanes sit side by side and are always scaled to the full width, so every peg is on screen.
 
-func laneOf(_ idx: Int) -> Int {
-    return idx <= 60 ? 0 : 1
+struct BoardGeo {
+    let size: CGSize
+    let count: Int
+    let top: CGFloat = 30
+    let bottom: CGFloat = 30
+    let side: CGFloat = 4
+
+    var laneWidth: CGFloat {
+        return (size.width - 2 * side) / CGFloat(max(count, 1))
+    }
+
+    var rowGap: CGFloat {
+        return (size.height - top - bottom) / 121
+    }
+
+    func laneCenter(_ p: Int) -> CGFloat {
+        return side + laneWidth * (CGFloat(p) + 0.5)
+    }
+
+    func holeX(_ p: Int) -> CGFloat {
+        return laneCenter(p) + min(laneWidth * 0.12, 6)
+    }
+
+    func holeY(_ idx: Int) -> CGFloat {
+        return size.height - bottom - CGFloat(idx) * rowGap
+    }
+
+    func point(_ p: Int, _ idx: Int) -> CGPoint {
+        return CGPoint(x: holeX(p), y: holeY(idx))
+    }
+
+    func hole(forY y: CGFloat) -> Int {
+        let raw = ((size.height - bottom - y) / max(rowGap, 0.1)).rounded()
+        return min(max(Int(raw), 0), 121)
+    }
+
+    func lane(forX x: CGFloat) -> Int {
+        let raw = Int(((x - side) / max(laneWidth, 1)).rounded(.down))
+        return min(max(raw, 0), max(count - 1, 0))
+    }
 }
 
-let boardSide: CGFloat = 22
-let boardTop: CGFloat = 34
-let boardBottom: CGFloat = 34
+/// The draggable front peg of one player.
+struct PegHandle: View {
+    let color: Color
+    let position: CGPoint
+    let selected: Bool
+    let onChange: (CGPoint) -> Void
+    let onEnd: (CGPoint) -> Void
 
-func vHolePoint(player: Int, idx: Int, size: CGSize, count n: Int) -> CGPoint {
-    let lane = laneOf(idx)
-    let row = lane == 0 ? idx : 60 - (idx - 61)
-    let gw = (size.width - 2 * boardSide) / CGFloat(max(n, 1))
-    let cs = min(gw * 0.5, 34)
-    let cx = boardSide + gw * (CGFloat(player) + 0.5)
-    let dy = (size.height - boardTop - boardBottom) / 60
-    let x = cx + (lane == 0 ? -cs / 2 : cs / 2)
-    return CGPoint(x: x, y: size.height - boardBottom - CGFloat(row) * dy)
+    var body: some View {
+        Circle()
+            .fill(color)
+            .overlay(Circle().stroke(GC.base, lineWidth: 2))
+            .overlay(Circle().stroke(GC.text, lineWidth: selected ? 1.5 : 0).padding(-3))
+            .frame(width: 17, height: 17)
+            .frame(width: 38, height: 38)
+            .contentShape(Circle())
+            .position(position)
+            .gesture(
+                DragGesture(minimumDistance: 0, coordinateSpace: .named("board"))
+                    .onChanged { g in
+                        onChange(g.location)
+                    }
+                    .onEnded { g in
+                        onEnd(g.location)
+                    }
+            )
+    }
 }
 
-struct VerticalPegBoard: View {
+struct PegBoard: View {
     let names: [String]
     let pegs: [Peg]
+    let selected: Int
+    let preview: Int            // holes the wheel would add for the selected player
+    let zoomed: Bool
+    let onSelect: (Int) -> Void
     let onPlace: (Int, Int) -> Void
 
     @State private var dragPlayer: Int? = nil
@@ -34,173 +90,170 @@ struct VerticalPegBoard: View {
 
     var body: some View {
         GeometryReader { geo in
-            Canvas { ctx, size in
-                drawBoard(ctx: &ctx, size: size)
+            let z: CGFloat = zoomed ? 2.4 : 1.0
+            let size = CGSize(width: geo.size.width, height: geo.size.height * z)
+            let g = BoardGeo(size: size, count: pegs.count)
+            ScrollView(.vertical, showsIndicators: zoomed) {
+                ZStack(alignment: .topLeading) {
+                    Canvas { ctx, sz in
+                        drawBoard(ctx: &ctx, g: g)
+                    }
+                    .frame(width: size.width, height: size.height)
+
+                    ForEach(0..<pegs.count, id: \.self) { p in
+                        gainBadge(p, g)
+                    }
+
+                    ForEach(0..<pegs.count, id: \.self) { p in
+                        pegViews(p, g)
+                    }
+
+                    if let p = dragPlayer, p < pegs.count {
+                        loupe(p, g)
+                    }
+                }
+                .frame(width: size.width, height: size.height)
+                .coordinateSpace(name: "board")
             }
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        track(value.location, size: geo.size)
+            .defaultScrollAnchor(.bottom)
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollDisabled(dragPlayer != nil)
+        }
+    }
+
+    private func frontHole(_ p: Int) -> Int {
+        if dragPlayer == p { return dragHole }
+        return pegs[p].front
+    }
+
+    private func gainBadge(_ p: Int, _ g: BoardGeo) -> some View {
+        let back = pegs[p].back
+        let front = frontHole(p)
+        let delta = front - back
+        let color = seatColors[p % 8]
+        let a = g.point(p, back)
+        let b = g.point(p, front)
+        return ZStack {
+            if delta > 0 {
+                Path { path in
+                    path.move(to: a)
+                    path.addLine(to: b)
+                }
+                .stroke(color.opacity(0.55), style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                Text("+\(delta)")
+                    .font(.system(size: 11, weight: .heavy))
+                    .foregroundColor(GC.base)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(color))
+                    .position(x: g.laneCenter(p) - min(g.laneWidth * 0.28, 8), y: (a.y + b.y) / 2)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func pegViews(_ p: Int, _ g: BoardGeo) -> some View {
+        let color = seatColors[p % 8]
+        let peg = pegs[p]
+        let backPt = g.point(p, peg.back)
+        let frontPt = g.point(p, frontHole(p))
+        return ZStack {
+            if peg.back != peg.front {
+                Circle()
+                    .fill(color.opacity(0.6))
+                    .overlay(Circle().stroke(GC.base, lineWidth: 1))
+                    .frame(width: 11, height: 11)
+                    .position(backPt)
+                    .allowsHitTesting(false)
+            }
+            if selected == p && preview > 0 && dragPlayer == nil && peg.front + preview <= 121 {
+                let ghost = g.point(p, peg.front + preview)
+                Circle()
+                    .strokeBorder(color, style: StrokeStyle(lineWidth: 2, dash: [3, 2]))
+                    .frame(width: 17, height: 17)
+                    .position(ghost)
+                    .allowsHitTesting(false)
+            }
+            PegHandle(
+                color: color,
+                position: frontPt,
+                selected: selected == p,
+                onChange: { pt in
+                    if dragPlayer == nil {
+                        dragPlayer = p
+                        onSelect(p)
                     }
-                    .onEnded { value in
-                        track(value.location, size: geo.size)
-                        if let p = dragPlayer {
-                            onPlace(p, dragHole)
-                        }
-                        dragPlayer = nil
-                    }
+                    dragHole = g.hole(forY: pt.y)
+                    dragPoint = pt
+                },
+                onEnd: { pt in
+                    let h = g.hole(forY: pt.y)
+                    dragPlayer = nil
+                    onPlace(p, h)
+                }
             )
         }
     }
 
-    private func nearestPlayer(_ x: CGFloat, size: CGSize) -> Int {
-        let n = max(pegs.count, 1)
-        let gw = (size.width - 2 * boardSide) / CGFloat(n)
-        let raw = Int(((x - boardSide) / gw).rounded(.down))
-        return min(max(raw, 0), n - 1)
+    private func loupe(_ p: Int, _ g: BoardGeo) -> some View {
+        let color = seatColors[p % 8]
+        let gain = max(dragHole - pegs[p].front, 0)
+        let note = gain > 0 ? "+\(gain)" : (dragHole == pegs[p].front ? "stay" : "back")
+        let x = min(max(g.holeX(p), 44), g.size.width - 44)
+        let y = max(g.holeY(dragHole) - 58, 26)
+        return VStack(spacing: 0) {
+            Text("\(dragHole)")
+                .font(.system(size: 22, weight: .heavy, design: .serif))
+                .foregroundColor(GC.base)
+            Text(note)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(GC.base.opacity(0.85))
+        }
+        .frame(width: 72, height: 44)
+        .background(RoundedRectangle(cornerRadius: 12).fill(color))
+        .position(x: x, y: y)
+        .allowsHitTesting(false)
     }
 
-    private func nearestHole(_ p: Int, _ pt: CGPoint, size: CGSize) -> Int {
-        var best = 0
-        var bestD = CGFloat.greatestFiniteMagnitude
-        for idx in 0...121 {
-            let h = vHolePoint(player: p, idx: idx, size: size, count: pegs.count)
-            let dx = h.x - pt.x
-            let dy = h.y - pt.y
-            let d = dx * dx + dy * dy
-            if d < bestD {
-                bestD = d
-                best = idx
-            }
-        }
-        return best
-    }
-
-    private func track(_ pt: CGPoint, size: CGSize) {
-        if pegs.isEmpty { return }
-        if dragPlayer == nil {
-            dragPlayer = nearestPlayer(pt.x, size: size)
-        }
-        if let p = dragPlayer {
-            dragHole = nearestHole(p, pt, size: size)
-            dragPoint = pt
-        }
-    }
-
-    private func drawBoard(ctx: inout GraphicsContext, size: CGSize) {
+    private func drawBoard(ctx: inout GraphicsContext, g: BoardGeo) {
         let n = pegs.count
         if n == 0 { return }
+        let gap = g.rowGap
+        let dot = min(gap * 0.38, 2.4)
 
-        // Lanes and initials
         for p in 0..<n {
             let color = seatColors[p % 8]
-            let a = vHolePoint(player: p, idx: 0, size: size, count: n)
-            let b = vHolePoint(player: p, idx: 121, size: size, count: n)
-            let topY = vHolePoint(player: p, idx: 60, size: size, count: n).y
-            let rect = CGRect(x: a.x - 12, y: topY - 12, width: (b.x - a.x) + 24, height: (a.y - topY) + 24)
-            ctx.fill(Path(roundedRect: rect, cornerRadius: 12), with: .color(color.opacity(0.2)))
-            ctx.stroke(Path(roundedRect: rect, cornerRadius: 12), with: .color(color.opacity(0.6)), lineWidth: 1)
-            let cx = (a.x + b.x) / 2
+            let x0 = g.side + g.laneWidth * CGFloat(p) + 2
+            let rect = CGRect(x: x0, y: g.holeY(121) - 12, width: g.laneWidth - 4, height: g.holeY(0) - g.holeY(121) + 24)
+            let isSel = selected == p
+            ctx.fill(Path(roundedRect: rect, cornerRadius: 10), with: .color(color.opacity(isSel ? 0.26 : 0.14)))
+            ctx.stroke(Path(roundedRect: rect, cornerRadius: 10), with: .color(color.opacity(isSel ? 1.0 : 0.5)), lineWidth: isSel ? 2 : 1)
+
             let initials = String(names[p].prefix(3))
             let label = Text(initials)
-                .font(.system(size: 13, weight: .heavy, design: .serif))
-                .foregroundColor(color)
-            ctx.draw(label, at: CGPoint(x: cx, y: topY - 24))
-            ctx.draw(label, at: CGPoint(x: cx, y: a.y + 24))
-        }
+                .font(.system(size: 12, weight: .heavy, design: .serif))
+                .foregroundColor(GC.text)
+            ctx.draw(label, at: CGPoint(x: g.laneCenter(p), y: g.holeY(121) - 20))
+            ctx.draw(label, at: CGPoint(x: g.laneCenter(p), y: g.holeY(0) + 20))
 
-        // Holes
-        for p in 0..<n {
-            let sel = dragPlayer == p
             for idx in 0...121 {
-                let pt = vHolePoint(player: p, idx: idx, size: size, count: n)
+                let pt = g.point(p, idx)
                 let special = idx == 61 || idx == 91 || idx == 121
-                let r: CGFloat = special ? 3.2 : (idx % 5 == 0 ? 2.6 : 1.9)
+                let five = idx % 5 == 0
+                let r: CGFloat = special ? dot * 1.5 : (five ? dot * 1.25 : dot)
                 let rect = CGRect(x: pt.x - r, y: pt.y - r, width: 2 * r, height: 2 * r)
-                var color: Color = Color.white.opacity(sel ? 0.7 : 0.42)
-                if special { color = Color.red }
-                ctx.fill(Path(ellipseIn: rect), with: .color(color))
+                var c: Color = five ? GC.dim : GC.overlay
+                if special { c = GC.red }
+                ctx.fill(Path(ellipseIn: rect), with: .color(c))
             }
-        }
 
-        // Scale along the outer edges (every 10)
-        for k in stride(from: 10, through: 60, by: 10) {
-            let y = vHolePoint(player: 0, idx: k, size: size, count: n).y
-            let t = Text("\(k)").font(.system(size: 9)).foregroundColor(GC.dim)
-            ctx.draw(t, at: CGPoint(x: 9, y: y))
-        }
-        for k in stride(from: 70, through: 120, by: 10) {
-            let y = vHolePoint(player: 0, idx: k, size: size, count: n).y
-            let t = Text("\(k)").font(.system(size: 9)).foregroundColor(GC.dim)
-            ctx.draw(t, at: CGPoint(x: size.width - 11, y: y))
-        }
-
-        // Connectors and the +N badge between the pegs
-        for p in 0..<n {
-            let peg = pegs[p]
-            let delta = peg.front - peg.back
-            if delta <= 0 { continue }
-            let pf = vHolePoint(player: p, idx: peg.front, size: size, count: n)
-            let pb = vHolePoint(player: p, idx: peg.back, size: size, count: n)
-            let color = seatColors[p % 8]
-            if laneOf(peg.front) == laneOf(peg.back) {
-                var line = Path()
-                line.move(to: pb)
-                line.addLine(to: pf)
-                ctx.stroke(line, with: .color(color.opacity(0.8)), lineWidth: 4)
+            // Scale numbers along the left of each lane (every 20, plus the finish)
+            for k in [20, 40, 60, 80, 100, 121] {
+                let t = Text("\(k)")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundColor(GC.dim)
+                ctx.draw(t, at: CGPoint(x: g.holeX(p) - min(g.laneWidth * 0.34, 14), y: g.holeY(k)))
             }
-            let mid = CGPoint(x: (pf.x + pb.x) / 2, y: (pf.y + pb.y) / 2)
-            let badge = CGRect(x: mid.x - 15, y: mid.y - 9, width: 30, height: 18)
-            ctx.fill(Path(roundedRect: badge, cornerRadius: 9), with: .color(color))
-            ctx.stroke(Path(roundedRect: badge, cornerRadius: 9), with: .color(Color.white), lineWidth: 1.5)
-            let text = Text("+\(delta)")
-                .font(.system(size: 11, weight: .heavy))
-                .foregroundColor(Color.white)
-            ctx.draw(text, at: mid)
-        }
-
-        // Pegs
-        for p in 0..<n {
-            let peg = pegs[p]
-            let color = seatColors[p % 8]
-            let pf = vHolePoint(player: p, idx: peg.front, size: size, count: n)
-            let pb = vHolePoint(player: p, idx: peg.back, size: size, count: n)
-            if peg.back != peg.front {
-                let br: CGFloat = 4.5
-                let brect = CGRect(x: pb.x - br, y: pb.y - br, width: 2 * br, height: 2 * br)
-                ctx.fill(Path(ellipseIn: brect), with: .color(color.opacity(0.6)))
-                ctx.stroke(Path(ellipseIn: brect), with: .color(Color.white), lineWidth: 1)
-            }
-            let fr: CGFloat = 6.5
-            let frect = CGRect(x: pf.x - fr, y: pf.y - fr, width: 2 * fr, height: 2 * fr)
-            ctx.fill(Path(ellipseIn: frect), with: .color(color))
-            ctx.stroke(Path(ellipseIn: frect), with: .color(Color.white), lineWidth: 1.5)
-        }
-
-        // While dragging: ghost ring on the hole and a loupe above the finger
-        if let p = dragPlayer, p < n {
-            let color = seatColors[p % 8]
-            let h = vHolePoint(player: p, idx: dragHole, size: size, count: n)
-            let ring = CGRect(x: h.x - 9, y: h.y - 9, width: 18, height: 18)
-            ctx.stroke(Path(ellipseIn: ring), with: .color(Color.white), lineWidth: 2.5)
-            ctx.stroke(Path(ellipseIn: ring.insetBy(dx: 3, dy: 3)), with: .color(color), lineWidth: 2)
-
-            let gain = max(dragHole - pegs[p].front, 0)
-            let loupeX = min(max(dragPoint.x, 44), size.width - 44)
-            let loupeY = max(dragPoint.y - 64, 26)
-            let loupe = CGRect(x: loupeX - 36, y: loupeY - 22, width: 72, height: 44)
-            ctx.fill(Path(roundedRect: loupe, cornerRadius: 12), with: .color(Color.black.opacity(0.85)))
-            ctx.stroke(Path(roundedRect: loupe, cornerRadius: 12), with: .color(color), lineWidth: 2.5)
-            let big = Text("\(dragHole)")
-                .font(.system(size: 22, weight: .heavy, design: .serif))
-                .foregroundColor(Color.white)
-            ctx.draw(big, at: CGPoint(x: loupeX, y: loupeY - 5))
-            let note = gain > 0 ? "+\(gain)" : (dragHole == pegs[p].front ? "stay" : "back")
-            let small = Text(note)
-                .font(.system(size: 11, weight: .bold))
-                .foregroundColor(GC.gold)
-            ctx.draw(small, at: CGPoint(x: loupeX, y: loupeY + 13))
         }
     }
 }
@@ -210,6 +263,7 @@ struct CribbageBoardView: View {
     @EnvironmentObject var store: Store
     @State private var selected = 0
     @State private var amount = 1
+    @State private var zoomed = false
 
     private var match: GameMatch? {
         return store.matches.first { $0.id == matchID }
@@ -218,10 +272,18 @@ struct CribbageBoardView: View {
     var body: some View {
         if let m = match {
             VStack(spacing: 8) {
-                VerticalPegBoard(names: m.names, pegs: m.pegs) { p, hole in
-                    selected = p
-                    place(p, hole)
-                }
+                PegBoard(
+                    names: m.names,
+                    pegs: m.pegs,
+                    selected: min(selected, max(m.names.count - 1, 0)),
+                    preview: m.finished ? 0 : amount,
+                    zoomed: zoomed,
+                    onSelect: { p in selected = p },
+                    onPlace: { p, hole in
+                        selected = p
+                        place(p, hole)
+                    }
+                )
                 if !m.finished {
                     controls(m)
                 }
@@ -232,6 +294,8 @@ struct CribbageBoardView: View {
     private func controls(_ m: GameMatch) -> some View {
         let sel = min(selected, max(m.names.count - 1, 0))
         let front = sel < m.pegs.count ? m.pegs[sel].front : 0
+        let room = max(121 - front, 0)
+        let cap = min(29, room)
         return HStack(spacing: 8) {
             Menu {
                 ForEach(0..<m.names.count, id: \.self) { i in
@@ -250,25 +314,38 @@ struct CribbageBoardView: View {
                         .font(.caption2)
                 }
                 .font(.subheadline)
-                .foregroundColor(.white)
+                .foregroundColor(GC.text)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
-                .background(Capsule().fill(Color.black.opacity(0.3)))
+                .background(Capsule().fill(GC.surface0))
                 .overlay(Capsule().stroke(seatColors[sel % 8], lineWidth: 1.5))
             }
-            StampWheel(title: "", value: $amount, range: 1...29, width: 70, height: 76)
-            Button("Peg +\(amount)") {
-                place(sel, min(front + amount, 121))
+            if cap >= 1 {
+                StampWheel(title: "", value: $amount, range: 1...cap, width: 70, height: 76, seat: sel)
+                Button("Peg +\(min(amount, cap))") {
+                    place(sel, front + min(amount, cap))
+                }
+                .buttonStyle(GlossButtonStyle(compact: true))
+            } else {
+                Text("At the finish")
+                    .font(.subheadline.bold())
+                    .foregroundColor(GC.dim)
             }
-            .buttonStyle(GlossButtonStyle(compact: true))
             Spacer(minLength: 0)
+            Button {
+                zoomed.toggle()
+            } label: {
+                Image(systemName: zoomed ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                    .font(.title3)
+            }
+            .foregroundColor(GC.text)
             Button {
                 undo()
             } label: {
                 Image(systemName: "arrow.uturn.backward")
                     .font(.title3)
             }
-            .foregroundColor(.white)
+            .foregroundColor(GC.text)
             .disabled(m.pegHistory.isEmpty)
             Menu {
                 Button(role: .destructive) {
@@ -279,7 +356,7 @@ struct CribbageBoardView: View {
             } label: {
                 Image(systemName: "ellipsis.circle")
                     .font(.title3)
-                    .foregroundColor(.white)
+                    .foregroundColor(GC.text)
             }
         }
     }

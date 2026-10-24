@@ -1,15 +1,23 @@
 import SwiftUI
 
-let seatColors: [Color] = [
-    Color(red: 0.15, green: 0.45, blue: 0.90),
-    Color(red: 0.90, green: 0.25, blue: 0.25),
-    Color(red: 0.20, green: 0.70, blue: 0.30),
-    Color(red: 0.95, green: 0.60, blue: 0.15),
-    Color(red: 0.60, green: 0.35, blue: 0.85),
-    Color(red: 0.10, green: 0.65, blue: 0.65),
-    Color(red: 0.92, green: 0.40, blue: 0.65),
-    Color(red: 0.55, green: 0.40, blue: 0.25)
-]
+/// Latte accents, one per seat.
+let seatHex: [UInt32] = [0x1E66F5, 0xD20F39, 0x40A02B, 0xFE640B, 0x8839EF, 0x179299, 0xEA76CB, 0xDF8E1D]
+
+let seatColors: [Color] = seatHex.map { Color(hex: $0) }
+
+/// The tan of the scoring wheel: one tan per seat, each leaning slightly toward that seat's accent.
+func tanColor(_ i: Int) -> Color {
+    let hex = seatHex[((i % 8) + 8) % 8]
+    let sr = Double((hex >> 16) & 0xFF) / 255.0
+    let sg = Double((hex >> 8) & 0xFF) / 255.0
+    let sb = Double(hex & 0xFF) / 255.0
+    let mix = 0.16
+    return Color(
+        red: 0.83 * (1 - mix) + sr * mix,
+        green: 0.71 * (1 - mix) + sg * mix,
+        blue: 0.55 * (1 - mix) + sb * mix
+    )
+}
 
 func signed(_ n: Int) -> String {
     return n > 0 ? "+\(n)" : "\(n)"
@@ -55,12 +63,12 @@ struct DrumPad: View {
         VStack(spacing: 0) {
             Text(titles[i])
                 .font(.caption2.bold())
-                .foregroundColor(.white)
+                .foregroundColor(GC.text)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
             Text(summary(i))
                 .font(.system(size: 17, weight: .heavy, design: .serif))
-                .foregroundColor(selected ? GC.gold : .white)
+                .foregroundColor(GC.text)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
         }
@@ -68,11 +76,11 @@ struct DrumPad: View {
         .padding(.vertical, 5)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(selected ? seatColors[i % 8].opacity(0.85) : Color.black.opacity(0.28))
+                .fill(selected ? seatColors[i % 8].opacity(0.35) : GC.surface0.opacity(0.6))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(selected ? GC.gold : seatColors[i % 8].opacity(0.7), lineWidth: selected ? 2 : 1)
+                .stroke(seatColors[i % 8], lineWidth: selected ? 2.5 : 1)
         )
         .onTapGesture {
             unit = i
@@ -85,10 +93,9 @@ struct DrumPad: View {
         } label: {
             Image(systemName: symbol)
                 .font(.title2.bold())
-                .foregroundColor(.white)
+                .foregroundColor(GC.text)
                 .frame(width: 46, height: 46)
                 .background(Circle().fill(GC.button))
-                .overlay(Circle().strokeBorder(GC.gold.opacity(0.7), style: StrokeStyle(lineWidth: 1, dash: [3, 3])).padding(3))
         }
         .buttonStyle(.plain)
     }
@@ -124,7 +131,8 @@ struct DrumPad: View {
                     ),
                     range: ranges(f, u),
                     width: nil,
-                    height: 128
+                    height: 128,
+                    seat: u
                 )
                 stepButton("plus", 1, f, u)
             }

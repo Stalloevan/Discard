@@ -39,7 +39,7 @@ struct RoundPanel: View {
         return HStack {
             Text(title)
                 .font(.headline)
-                .foregroundColor(.white)
+                .foregroundColor(GC.text)
             Spacer()
             Text(sub)
                 .font(.subheadline)
@@ -101,7 +101,7 @@ struct HeartsEntry: View {
                 Spacer()
                 Text(sum == 26 ? "26 / 26" : "\(26 - sum) left to enter")
                     .font(.subheadline.bold())
-                    .foregroundColor(sum == 26 ? Color.green : GC.gold)
+                    .foregroundColor(sum == 26 ? GC.green : GC.dim)
                     .monospacedDigit()
             }
             DrumPad(
@@ -202,7 +202,7 @@ struct SpadesEntry: View {
                 Spacer()
                 Text("Tricks \(tricksTotal) / \(hand)")
                     .font(.subheadline.bold())
-                    .foregroundColor(tricksTotal == hand ? Color.green : GC.gold)
+                    .foregroundColor(tricksTotal == hand ? GC.green : GC.dim)
                     .monospacedDigit()
             }
             DrumPad(
@@ -276,12 +276,12 @@ struct OhHellEntry: View {
             HStack {
                 Text("Bids \(bidSum)")
                     .font(.subheadline.bold())
-                    .foregroundColor(bidSum == hand ? Color.red : GC.dim)
+                    .foregroundColor(bidSum == hand ? GC.red : GC.dim)
                     .monospacedDigit()
                 Spacer()
                 Text("Tricks \(tookSum) / \(hand)")
                     .font(.subheadline.bold())
-                    .foregroundColor(tookSum == hand ? Color.green : GC.gold)
+                    .foregroundColor(tookSum == hand ? GC.green : GC.dim)
                     .monospacedDigit()
             }
             DrumPad(
@@ -411,7 +411,7 @@ struct HLJEntry: View {
                     Spacer()
                     Text("\(sum) of 4")
                         .font(.subheadline.bold())
-                        .foregroundColor(GC.gold)
+                        .foregroundColor(GC.dim)
                         .monospacedDigit()
                 }
                 DrumPad(

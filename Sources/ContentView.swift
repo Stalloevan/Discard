@@ -25,7 +25,7 @@ struct ContentView: View {
                                         GameTile(kind: kind, size: 80)
                                         Text(kind.title)
                                             .font(.subheadline.bold())
-                                            .foregroundColor(.white)
+                                            .foregroundColor(GC.text)
                                             .lineLimit(1)
                                             .minimumScaleFactor(0.7)
                                         Text(kind.playersText)
@@ -42,7 +42,7 @@ struct ContentView: View {
                                 Text("IN PROGRESS")
                                     .font(.system(size: 13, weight: .heavy, design: .serif))
                                     .tracking(1.5)
-                                    .foregroundColor(GC.gold)
+                                    .foregroundColor(GC.dim)
                                 ForEach(active) { m in
                                     NavigationLink(value: m.id) {
                                         HStack(spacing: 10) {
@@ -50,7 +50,7 @@ struct ContentView: View {
                                             VStack(alignment: .leading, spacing: 1) {
                                                 Text(m.kind.title)
                                                     .font(.subheadline.bold())
-                                                    .foregroundColor(.white)
+                                                    .foregroundColor(GC.text)
                                                 Text(m.names.joined(separator: ", "))
                                                     .font(.caption)
                                                     .foregroundColor(GC.dim)
@@ -96,7 +96,7 @@ struct ContentView: View {
                 MatchView(matchID: id)
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
     }
 
     private var banner: some View {
@@ -107,7 +107,7 @@ struct ContentView: View {
                     .embossed(36)
                 Text("Deal. Score. Win.")
                     .font(.subheadline)
-                    .foregroundColor(GC.dim)
+                    .foregroundColor(GC.onLeatherDim)
             }
             Spacer()
         }
@@ -166,7 +166,7 @@ struct GameHomeView: View {
                                 .embossed(26)
                             Text(kind.blurb)
                                 .font(.caption)
-                                .foregroundColor(GC.dim)
+                                .foregroundColor(GC.onLeatherDim)
                         }
                         Spacer()
                     }
@@ -177,23 +177,19 @@ struct GameHomeView: View {
                         HStack {
                             Text("How many players?")
                                 .font(.subheadline.bold())
-                                .foregroundColor(.white)
+                                .foregroundColor(GC.text)
                             Spacer()
                         }
                         HStack(spacing: 6) {
                             ForEach(countChoices, id: \.self) { n in
                                 Text("\(n)")
                                     .font(.system(size: 18, weight: .heavy, design: .serif))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(GC.text)
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 8)
                                     .background(
                                         RoundedRectangle(cornerRadius: 10)
-                                            .fill(n == count ? GC.button : Color.black.opacity(0.28))
-                                    )
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 10)
-                                            .stroke(n == count ? GC.gold : Color.white.opacity(0.15), lineWidth: n == count ? 2 : 1)
+                                            .fill(n == count ? GC.rosewater : GC.surface0)
                                     )
                                     .onTapGesture {
                                         count = n
@@ -206,20 +202,20 @@ struct GameHomeView: View {
                                 HStack(spacing: 8) {
                                     Text("\(i + 1)")
                                         .font(.system(size: 13, weight: .heavy, design: .serif))
-                                        .foregroundColor(.white)
+                                        .foregroundColor(GC.base)
                                         .frame(width: 24, height: 24)
                                         .background(Circle().fill(seatColors[i]))
                                     TextField(
                                         "",
                                         text: $names[i],
-                                        prompt: Text("Player \(i + 1)").foregroundColor(Color.white.opacity(0.45))
+                                        prompt: Text("Player \(i + 1)").foregroundColor(GC.overlay)
                                     )
-                                    .foregroundColor(.white)
+                                    .foregroundColor(GC.text)
                                     .textInputAutocapitalization(.words)
                                     .autocorrectionDisabled()
                                 }
                                 .padding(6)
-                                .background(RoundedRectangle(cornerRadius: 10).fill(Color.black.opacity(0.28)))
+                                .background(RoundedRectangle(cornerRadius: 10).fill(GC.surface0))
                             }
                         }
 
@@ -233,7 +229,7 @@ struct GameHomeView: View {
                     VStack(spacing: 8) {
                         HStack {
                             Text("First dealer")
-                                .foregroundColor(.white)
+                                .foregroundColor(GC.text)
                             Spacer()
                             Picker("First dealer", selection: $dealer) {
                                 ForEach(0..<count, id: \.self) { i in
@@ -241,7 +237,7 @@ struct GameHomeView: View {
                                 }
                             }
                             .pickerStyle(.menu)
-                            .tint(GC.gold)
+                            .tint(GC.rosewater)
                         }
                         targetControl
                     }
@@ -285,7 +281,7 @@ struct GameHomeView: View {
         switch kind {
         case .hearts:
             Stepper(value: $target, in: 50...200, step: 10) {
-                Text("Game ends at \(target) points").foregroundColor(.white)
+                Text("Game ends at \(target) points").foregroundColor(GC.text)
             }
         case .cribbage:
             Picker("Play to", selection: $target) {
@@ -295,15 +291,15 @@ struct GameHomeView: View {
             .pickerStyle(.segmented)
         case .highLowJack:
             Stepper(value: $target, in: 5...21) {
-                Text("First to \(target)").foregroundColor(.white)
+                Text("First to \(target)").foregroundColor(GC.text)
             }
         case .spades:
             Stepper(value: $target, in: 100...1000, step: 50) {
-                Text("First to \(target)").foregroundColor(.white)
+                Text("First to \(target)").foregroundColor(GC.text)
             }
         case .euchre:
             Stepper(value: $target, in: 5...15) {
-                Text("First to \(target)").foregroundColor(.white)
+                Text("First to \(target)").foregroundColor(GC.text)
             }
         case .ohHell:
             Text("Plays \(GameRules.ohHellMax(count) * 2 - 1) rounds, highest score wins.")

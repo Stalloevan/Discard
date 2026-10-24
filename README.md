@@ -18,3 +18,7 @@ navigationDestination(item:), onChange with two parameters, topBarTrailing (all 
 ## Credits
 App icon: artwork from [Icons8](https://icons8.com) when available at build time, otherwise the MIT-licensed
 [Bootstrap Icons](https://icons.getbootstrap.com) spade. The release notes record which one was used.
+
+## Credits (v1.5)
+- Leather texture: "Brown Leather" by Rob Tuytel, [Poly Haven](https://polyhaven.com/a/brown_leather), CC0. Fetched and tinted Rosewater during the build.
+- Palette: Catppuccin Latte.

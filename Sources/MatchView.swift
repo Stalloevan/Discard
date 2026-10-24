@@ -21,7 +21,7 @@ struct MatchView: View {
                 content(m)
             } else {
                 Text("This game was removed.")
-                    .foregroundColor(.white)
+                    .foregroundColor(GC.text)
             }
         }
         .gcTitle(match?.kind.title ?? "Game")
@@ -136,7 +136,7 @@ struct MatchView: View {
             HStack {
                 Label("\(winnerNames(m, m.winnerUnits)) won!\(skunkText(m))", systemImage: "trophy.fill")
                     .font(.subheadline.bold())
-                    .foregroundColor(GC.gold)
+                    .foregroundColor(GC.dim)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 Spacer()
@@ -151,14 +151,14 @@ struct MatchView: View {
             HStack {
                 Label("\(winnerNames(m, w)) \(w.count > 1 ? "lead" : "leads") at the finish", systemImage: "flag.checkered")
                     .font(.subheadline.bold())
-                    .foregroundColor(.white)
+                    .foregroundColor(GC.text)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 Spacer()
                 Button("Declare winner") {
                     store.finish(matchID, winners: w)
                 }
-                .buttonStyle(GlossButtonStyle(tint: Color(red: 0.75, green: 0.50, blue: 0.10), compact: true))
+                .buttonStyle(GlossButtonStyle(tint: GC.yellow, compact: true))
             }
             .panel()
         }
@@ -196,17 +196,17 @@ struct HistorySheet: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Round \(item.offset + 1)")
                                     .font(.subheadline.bold())
-                                    .foregroundColor(.white)
+                                    .foregroundColor(GC.text)
                                 Text(summary(m, item.element))
                                     .font(.caption)
-                                    .foregroundColor(.white)
+                                    .foregroundColor(GC.text)
                                 if !item.element.detail.isEmpty {
                                     Text(item.element.detail)
                                         .font(.caption2)
                                         .foregroundColor(GC.dim)
                                 }
                             }
-                            .listRowBackground(Color.black.opacity(0.3))
+                            .listRowBackground(GC.mantle)
                         }
                         .onDelete { offsets in
                             let ids = offsets.map { reversed[$0].element.id }
@@ -229,6 +229,6 @@ struct HistorySheet: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
     }
 }

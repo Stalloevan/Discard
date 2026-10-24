@@ -46,45 +46,44 @@ struct ScoreStrip: View {
             ZStack(alignment: .topTrailing) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(LinearGradient(colors: [color.opacity(0.9), color.opacity(0.7)], startPoint: .top, endPoint: .bottom))
+                        .fill(GC.base)
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(LinearGradient(colors: [Color.white.opacity(0.3), Color.clear], startPoint: .top, endPoint: .center))
+                        .fill(color.opacity(0.22))
                     RoundedRectangle(cornerRadius: 12)
-                        .stroke(isLeader ? GC.gold : Color.white.opacity(0.35), lineWidth: isLeader ? 3 : 1)
+                        .stroke(isLeader ? GC.yellow : color, lineWidth: isLeader ? 3.5 : 1.5)
                     Text("\(m.total(i))")
                         .font(.system(size: min(30, tileW * 0.46), weight: .heavy, design: .serif))
-                        .foregroundColor(.white)
+                        .foregroundColor(GC.text)
                         .lineLimit(1)
                         .minimumScaleFactor(0.5)
-                        .shadow(color: Color.black.opacity(0.5), radius: 0, x: 0, y: 1.5)
                         .padding(.horizontal, 3)
                 }
                 .frame(width: tileW, height: 56)
                 if hasDealer {
                     Image(systemName: "rectangle.stack.fill")
                         .font(.system(size: 9))
-                        .foregroundColor(.black)
+                        .foregroundColor(GC.text)
                         .padding(4)
-                        .background(Circle().fill(GC.gold))
+                        .background(Circle().fill(GC.yellow))
                         .offset(x: 3, y: -5)
                 }
             }
             Text(u.name)
                 .font(.caption.bold())
-                .foregroundColor(.white)
+                .foregroundColor(GC.onLeather)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
             if !u.subtitle.isEmpty {
                 Text(u.subtitle)
                     .font(.caption2)
-                    .foregroundColor(GC.dim)
+                    .foregroundColor(GC.onLeatherDim)
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
             }
             if !extra.isEmpty {
                 Text(extra)
                     .font(.caption2)
-                    .foregroundColor(m.kind == .spades ? GC.dim : GC.gold)
+                    .foregroundColor(GC.onLeather)
                     .lineLimit(1)
             }
         }
@@ -105,7 +104,7 @@ struct DealerBar: View {
                 .foregroundColor(GC.dim)
             Text(name)
                 .bold()
-                .foregroundColor(.white)
+                .foregroundColor(GC.text)
                 .lineLimit(1)
             if m.kind == .cribbage {
                 Text("· crib \(GameRules.cribSize(m.names.count)) cards")
@@ -124,7 +123,7 @@ struct DealerBar: View {
             } label: {
                 Image(systemName: "person.crop.circle")
                     .font(.title3)
-                    .foregroundColor(.white)
+                    .foregroundColor(GC.text)
             }
             Button("Next") {
                 store.mutate(matchID) { mm in
@@ -136,7 +135,6 @@ struct DealerBar: View {
         .font(.subheadline)
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(Capsule().fill(Color.black.opacity(0.28)))
-        .overlay(Capsule().stroke(Color.white.opacity(0.16), lineWidth: 1))
+        .background(Capsule().fill(GC.mantle))
     }
 }
