@@ -70,13 +70,39 @@ struct RoundPanel: View {
     }
 }
 
+// MARK: Helpers
+
+/// A binding that never lets a group of values add up to more than `cap`.
+func cappedBinding(_ values: Binding<[Int]>, _ i: Int, cap: Int) -> Binding<Int> {
+    return Binding<Int>(
+        get: { i < values.wrappedValue.count ? values.wrappedValue[i] : 0 },
+        set: { newValue in
+            var arr = values.wrappedValue
+            if i >= arr.count { return }
+            var others = 0
+            for (j, v) in arr.enumerated() where j != i {
+                others += v
+            }
+            arr[i] = max(0, min(newValue, cap - others))
+            values.wrappedValue = arr
+        }
+    )
+}
+
+func remainingRange(_ values: [Int], _ i: Int, cap: Int) -> ClosedRange<Int> {
+    var others = 0
+    for (j, v) in values.enumerated() where j != i {
+        others += v
+    }
+    return 0...max(0, cap - others)
+}
+
 // MARK: Hearts
 
 struct HeartsEntry: View {
     let match: GameMatch
     let onSave: (ScoreRound) -> Void
     @State private var values: [Int]
-    @State private var moon: Int = -1
 
     init(match: GameMatch, onSave: @escaping (ScoreRound) -> Void) {
         self.match = match
@@ -88,54 +114,53 @@ struct HeartsEntry: View {
         return values.reduce(0, +)
     }
 
+    private var shooter: Int? {
+        return values.firstIndex(of: 26)
+    }
+
     var body: some View {
+        let n = match.units.count
         VStack(spacing: 8) {
             HStack {
                 Text("Points taken")
                     .font(.subheadline)
                     .foregroundColor(GC.dim)
                 Spacer()
-                Text("\(sum) / 26")
+                Text(sum == 26 ? "26 / 26" : "\(26 - sum) left to enter")
                     .font(.subheadline.bold())
-                    .foregroundColor(sum == 26 || moon >= 0 ? Color.green : GC.gold)
+                    .foregroundColor(sum == 26 ? Color.green : GC.gold)
                     .monospacedDigit()
             }
             WheelRow(
                 titles: match.units.map { $0.name },
-                values: (0..<match.units.count).map { i in $values[i] },
-                range: 0...26
+                values: (0..<n).map { i in cappedBinding($values, i, cap: 26) },
+                ranges: (0..<n).map { i in remainingRange(values, i, cap: 26) }
             )
-            HStack {
-                Text("Shot the moon")
-                    .font(.subheadline)
+            if let s = shooter {
+                Text("\(match.units[s].name) took all 26 and shot the moon: everyone else scores 26.")
+                    .font(.caption)
+                    .foregroundColor(GC.gold)
+            } else {
+                Text("The hand always totals 26. One player taking all 26 shoots the moon.")
+                    .font(.caption)
                     .foregroundColor(GC.dim)
-                Spacer()
-                Picker("Shooter", selection: $moon) {
-                    Text("No one").tag(-1)
-                    ForEach(0..<match.units.count, id: \.self) { i in
-                        Text(match.units[i].name).tag(i)
-                    }
-                }
-                .pickerStyle(.menu)
-                .tint(GC.gold)
             }
             Button("Save round") {
-                let n = match.units.count
                 var scores = values
                 var detail = ""
-                if moon >= 0 {
+                if let s = shooter {
                     scores = []
                     for i in 0..<n {
-                        scores.append(i == moon ? 0 : 26)
+                        scores.append(i == s ? 0 : 26)
                     }
-                    detail = "\(match.units[moon].name) shot the moon"
+                    detail = "\(match.units[s].name) shot the moon"
                 }
                 var r = ScoreRound(scores: scores)
                 r.detail = detail
                 onSave(r)
             }
             .buttonStyle(GlossButtonStyle())
-            .disabled(!(moon >= 0 || sum == 26))
+            .disabled(sum != 26)
         }
     }
 }
@@ -210,17 +235,20 @@ struct SpadesEntry: View {
             }
             .tabViewStyle(.page(indexDisplayMode: .always))
             .indexViewStyle(.page(backgroundDisplayMode: .never))
-            .frame(height: 190)
+            .frame(height: 200)
             Button("Save round") {
                 save()
             }
             .buttonStyle(GlossButtonStyle())
+            .disabled(tricksTotal != hand)
         }
     }
 
     private func page(_ i: Int) -> some View {
         let c = compute(i)
-        let nilMax = max(1, match.units[i].members.count)
+        let members = max(1, match.units[i].members.count)
+        let nilMadeRange = 0...max(0, members - nilFailed[i])
+        let nilFailedRange = 0...max(0, members - nilMade[i])
         return VStack(spacing: 2) {
             HStack {
                 Text(match.units[i].name)
@@ -233,9 +261,9 @@ struct SpadesEntry: View {
             }
             HStack(spacing: 6) {
                 WheelColumn(title: "Bid", value: $bid[i], range: 0...hand)
-                WheelColumn(title: "Tricks", value: $tricks[i], range: 0...hand)
-                WheelColumn(title: "Nil made", value: $nilMade[i], range: 0...nilMax)
-                WheelColumn(title: "Nil failed", value: $nilFailed[i], range: 0...nilMax)
+                WheelColumn(title: "Tricks", value: cappedBinding($tricks, i, cap: hand), range: remainingRange(tricks, i, cap: hand))
+                WheelColumn(title: "Nil made", value: $nilMade[i], range: nilMadeRange)
+                WheelColumn(title: "Nil failed", value: $nilFailed[i], range: nilFailedRange)
             }
             .frame(maxWidth: .infinity)
         }
@@ -290,6 +318,7 @@ struct OhHellEntry: View {
     }
 
     var body: some View {
+        let n = match.units.count
         let bidSum = bid.reduce(0, +)
         let tookSum = took.reduce(0, +)
         VStack(spacing: 8) {
@@ -301,17 +330,17 @@ struct OhHellEntry: View {
             if page == 0 {
                 WheelRow(
                     titles: match.units.map { $0.name },
-                    values: (0..<match.units.count).map { i in $bid[i] },
+                    values: (0..<n).map { i in $bid[i] },
                     range: 0...hand
                 )
-                Text("Bids add to \(bidSum)" + (bidSum == hand ? " (dealer can't make it equal \(hand))" : ""))
+                Text("Bids add to \(bidSum)" + (bidSum == hand ? ". The total can't equal \(hand), so change a bid." : ""))
                     .font(.caption)
-                    .foregroundColor(bidSum == hand ? GC.gold : GC.dim)
+                    .foregroundColor(bidSum == hand ? Color.red : GC.dim)
             } else {
                 WheelRow(
                     titles: match.units.map { $0.name },
-                    values: (0..<match.units.count).map { i in $took[i] },
-                    range: 0...hand
+                    values: (0..<n).map { i in cappedBinding($took, i, cap: hand) },
+                    ranges: (0..<n).map { i in remainingRange(took, i, cap: hand) }
                 )
                 Text("Tricks entered: \(tookSum) of \(hand)")
                     .font(.caption)
@@ -319,7 +348,7 @@ struct OhHellEntry: View {
             }
             Button("Save round") {
                 var scores: [Int] = []
-                for i in 0..<match.units.count {
+                for i in 0..<n {
                     scores.append(bid[i] == took[i] ? 10 + bid[i] : 0)
                 }
                 var r = ScoreRound(scores: scores)
@@ -327,6 +356,7 @@ struct OhHellEntry: View {
                 onSave(r)
             }
             .buttonStyle(GlossButtonStyle())
+            .disabled(tookSum != hand || bidSum == hand)
         }
     }
 }
@@ -340,10 +370,10 @@ struct EuchreEntry: View {
     @State private var outcome = 0
 
     private let outcomes: [String] = [
-        "Made it +1",
+        "Made +1",
         "March +2",
         "Alone +4",
-        "Euchred: they +2"
+        "Euchre +2"
     ]
 
     init(match: GameMatch, onSave: @escaping (ScoreRound) -> Void) {
@@ -353,33 +383,21 @@ struct EuchreEntry: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            HStack(alignment: .top, spacing: 8) {
-                VStack(spacing: 2) {
-                    Text("Called trump")
-                        .font(.caption2)
-                        .foregroundColor(GC.dim)
-                    Picker("Makers", selection: $maker) {
-                        ForEach(0..<match.units.count, id: \.self) { i in
-                            Text(match.units[i].name).tag(i)
-                        }
-                    }
-                    .pickerStyle(.wheel)
-                    .frame(height: 124)
-                    .environment(\.colorScheme, .dark)
-                }
-                VStack(spacing: 2) {
-                    Text("Result")
-                        .font(.caption2)
-                        .foregroundColor(GC.dim)
-                    Picker("Result", selection: $outcome) {
-                        ForEach(0..<outcomes.count, id: \.self) { i in
-                            Text(outcomes[i]).tag(i)
-                        }
-                    }
-                    .pickerStyle(.wheel)
-                    .frame(height: 124)
-                    .environment(\.colorScheme, .dark)
-                }
+            HStack(alignment: .top, spacing: 10) {
+                StampDrum(
+                    title: "Called trump",
+                    labels: match.units.map { $0.name },
+                    selection: $maker,
+                    width: nil,
+                    height: 112
+                )
+                StampDrum(
+                    title: "Result (euchre: other side scores)",
+                    labels: outcomes,
+                    selection: $outcome,
+                    width: nil,
+                    height: 112
+                )
             }
             Button("Save round") {
                 var scores: [Int] = Array(repeating: 0, count: match.units.count)
@@ -421,6 +439,7 @@ struct HLJEntry: View {
     }
 
     var body: some View {
+        let n = match.units.count
         VStack(spacing: 8) {
             Picker("Entry", selection: $page) {
                 Text("Bid").tag(0)
@@ -428,43 +447,25 @@ struct HLJEntry: View {
             }
             .pickerStyle(.segmented)
             if page == 0 {
-                HStack(alignment: .top, spacing: 8) {
-                    VStack(spacing: 2) {
-                        Text("Bidder")
-                            .font(.caption2)
-                            .foregroundColor(GC.dim)
-                        Picker("Bidder", selection: $bidder) {
-                            ForEach(0..<match.units.count, id: \.self) { i in
-                                Text(match.units[i].name).tag(i)
-                            }
-                        }
-                        .pickerStyle(.wheel)
-                        .frame(height: 124)
-                        .environment(\.colorScheme, .dark)
-                    }
-                    VStack(spacing: 2) {
-                        Text("Bid")
-                            .font(.caption2)
-                            .foregroundColor(GC.dim)
-                        Picker("Bid", selection: $bid) {
-                            ForEach(1...4, id: \.self) { n in
-                                Text("\(n)").tag(n)
-                            }
-                        }
-                        .pickerStyle(.wheel)
-                        .frame(height: 124)
-                        .environment(\.colorScheme, .dark)
-                    }
+                HStack(alignment: .top, spacing: 10) {
+                    StampDrum(
+                        title: "Bidder",
+                        labels: match.units.map { $0.name },
+                        selection: $bidder,
+                        width: nil,
+                        height: 112
+                    )
+                    StampWheel(title: "Bid", value: $bid, range: 1...4, width: nil, height: 112)
                 }
             } else {
                 WheelRow(
                     titles: match.units.map { $0.name },
-                    values: (0..<match.units.count).map { i in $pts[i] },
-                    range: 0...4
+                    values: (0..<n).map { i in cappedBinding($pts, i, cap: 4) },
+                    ranges: (0..<n).map { i in remainingRange(pts, i, cap: 4) }
                 )
                 Text("High, Low, Jack, Game: \(sum) of 4")
                     .font(.caption)
-                    .foregroundColor(sum <= 4 ? GC.dim : Color.red)
+                    .foregroundColor(GC.dim)
             }
             Button("Save round") {
                 var scores = pts
@@ -478,7 +479,6 @@ struct HLJEntry: View {
                 onSave(r)
             }
             .buttonStyle(GlossButtonStyle())
-            .disabled(sum > 4)
         }
     }
 }

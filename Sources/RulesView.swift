@@ -25,7 +25,7 @@ struct RulesView: View {
 
     init(kind: GameKind, players: Int) {
         self.kind = kind
-        _count = State(initialValue: min(max(players, 2), 8))
+        _count = State(initialValue: min(max(players, kind.minPlayers), 8))
     }
 
     private var setup: Setup {
@@ -36,7 +36,7 @@ struct RulesView: View {
         List {
             Section("Players") {
                 Picker("Number of players", selection: $count) {
-                    ForEach(2...8, id: \.self) { n in
+                    ForEach(kind.minPlayers...8, id: \.self) { n in
                         Text("\(n)").tag(n)
                     }
                 }
@@ -56,7 +56,7 @@ struct RulesView: View {
             .listRowBackground(Color.black.opacity(0.3))
 
             Section("All player counts") {
-                ForEach(2...8, id: \.self) { n in
+                ForEach(kind.minPlayers...8, id: \.self) { n in
                     let s = GameRules.setup(kind, players: n)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("\(n) players")

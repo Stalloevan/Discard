@@ -22,42 +22,38 @@ struct WheelColumn: View {
     var width: CGFloat = 72
 
     var body: some View {
-        VStack(spacing: 2) {
-            Text(title)
-                .font(.caption2)
-                .foregroundColor(GC.dim)
-                .lineLimit(1)
-                .minimumScaleFactor(0.5)
-                .frame(width: width)
-            Picker(title, selection: $value) {
-                ForEach(Array(range), id: \.self) { n in
-                    Text("\(n)").tag(n)
-                }
-            }
-            .pickerStyle(.wheel)
-            .frame(width: width, height: 100)
-            .clipped()
-            .environment(\.colorScheme, .dark)
-        }
+        StampWheel(title: title, value: $value, range: range, width: width, height: 112)
     }
 }
 
 struct WheelRow: View {
     let titles: [String]
     let values: [Binding<Int>]
-    let range: ClosedRange<Int>
+    let ranges: [ClosedRange<Int>]
+
+    init(titles: [String], values: [Binding<Int>], ranges: [ClosedRange<Int>]) {
+        self.titles = titles
+        self.values = values
+        self.ranges = ranges
+    }
+
+    init(titles: [String], values: [Binding<Int>], range: ClosedRange<Int>) {
+        self.titles = titles
+        self.values = values
+        self.ranges = Array(repeating: range, count: titles.count)
+    }
 
     var body: some View {
         GeometryReader { geo in
             let n = max(titles.count, 1)
-            let w = min(76, geo.size.width / CGFloat(n) - 4)
+            let w = min(80, geo.size.width / CGFloat(n) - 4)
             HStack(spacing: 4) {
                 ForEach(0..<titles.count, id: \.self) { i in
-                    WheelColumn(title: titles[i], value: values[i], range: range, width: w)
+                    WheelColumn(title: titles[i], value: values[i], range: ranges[i], width: w)
                 }
             }
             .frame(width: geo.size.width)
         }
-        .frame(height: 124)
+        .frame(height: 132)
     }
 }

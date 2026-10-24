@@ -16,7 +16,13 @@ struct WarPanel: View {
             },
             set: { newValue in
                 store.mutate(matchID) { m in
-                    if i < m.cards.count { m.cards[i] = newValue }
+                    if i >= m.cards.count { return }
+                    var others = 0
+                    for (j, c) in m.cards.enumerated() where j != i {
+                        others += c
+                    }
+                    let cap = GameRules.warPer(m.names.count) * m.names.count
+                    m.cards[i] = max(0, min(newValue, cap - others))
                 }
             }
         )
@@ -40,7 +46,7 @@ struct WarPanel: View {
                 WheelRow(
                     titles: m.names,
                     values: (0..<m.names.count).map { i in binding(i) },
-                    range: 0...total
+                    ranges: (0..<m.names.count).map { i in remainingRange(m.cards, i, cap: total) }
                 )
                 HStack {
                     let out = m.names.indices.filter { m.cards[$0] == 0 }.map { m.names[$0] }

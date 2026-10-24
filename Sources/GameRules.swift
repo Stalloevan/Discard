@@ -50,7 +50,7 @@ enum GameRules {
     static func handSize(_ kind: GameKind, _ n: Int) -> Int {
         switch kind {
         case .hearts:
-            let table: [Int: Int] = [2: 26, 3: 17, 4: 13, 5: 10, 6: 8, 7: 7, 8: 6]
+            let table: [Int: Int] = [3: 17, 4: 13, 5: 10, 6: 8, 7: 7, 8: 6]
             return table[n] ?? 13
         case .spades:
             let table: [Int: Int] = [2: 13, 3: 17, 4: 13, 5: 10, 6: 8, 7: 7, 8: 6]
@@ -84,7 +84,6 @@ enum GameRules {
 
     private static func heartsSetup(_ n: Int) -> Setup {
         let removedTable: [Int: String] = [
-            2: "None",
             3: "2♦ (1 card)",
             4: "None",
             5: "2♦, 2♣ (2 cards)",
@@ -96,14 +95,10 @@ enum GameRules {
         let passCount = n == 8 ? 2 : 3
         var dir = "left, right, then hold (no pass)"
         if n == 4 { dir = "left, right, across, then hold (no pass)" }
-        if n == 2 { dir = "to your opponent three hands, then hold" }
         var play: [String] = []
         play.append("Pass \(passCount) cards face-down before each hand: \(dir).")
         play.append("The holder of the lowest club (the 2♣ unless it was removed) leads the first trick.")
         play.append("All 26 penalty points stay in the deck: 13 hearts and the Q♠.")
-        if n == 2 {
-            play.append("Every card is dealt, so a hand is 26 tricks.")
-        }
         let hand = "\(per) cards each (\(per * n) dealt)"
         return Setup(decks: "1 standard 52-card deck", removed: removedTable[n] ?? "None", hand: hand, play: play, teams: [], target: 100)
     }
@@ -256,7 +251,7 @@ enum GameRules {
                 RuleSection(title: "Scoring", lines: [
                     "Each heart is 1 point and the Q♠ is 13, so every hand adds up to 26.",
                     "Shoot the moon: take all 13 hearts and the Q♠. You score 0 and everyone else scores 26. (Some groups subtract 26 from the shooter instead.)",
-                    "In the app, enter the points each player took. The hand must total 26."
+                    "In the app, enter the points each player took; the hand must total exactly 26. Entering 26 for one player is shooting the moon: they score 0 and everyone else scores 26."
                 ])
             ]
         case .cribbage:

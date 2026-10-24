@@ -151,7 +151,7 @@ struct GameHomeView: View {
                             Spacer()
                         }
                         Picker("Number of players", selection: $count) {
-                            ForEach(2...8, id: \.self) { n in
+                            ForEach(kind.minPlayers...8, id: \.self) { n in
                                 Text("\(n)").tag(n)
                             }
                         }

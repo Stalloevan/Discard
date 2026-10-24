@@ -42,6 +42,8 @@ enum GameKind: String, Codable, CaseIterable, Identifiable {
     }
 
     var lowWins: Bool { self == .hearts }
+
+    var minPlayers: Int { self == .hearts ? 3 : 2 }
 }
 
 struct ScoreUnit: Codable, Hashable {
