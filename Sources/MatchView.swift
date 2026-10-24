@@ -25,7 +25,14 @@ struct MatchView: View {
             let fullH = geo.size.height + ins.top + ins.bottom
             // The whole game UI is laid out like a portrait screen, then turned a quarter turn (header on the left).
             // Portrait top/leading/bottom/trailing are the screen's left/bottom/right/top.
-            let pins = EdgeInsets(top: ins.leading, leading: ins.bottom, bottom: ins.trailing, trailing: ins.top)
+            // The notch side only needs to clear the cut-out (not the whole inset); the two long sides get the same margin.
+            let side = max(ins.bottom, ins.top)
+            let pins = EdgeInsets(
+                top: max(ins.leading - 22, 0),
+                leading: side,
+                bottom: max(ins.trailing - 22, 0),
+                trailing: side
+            )
             portraitUI(pins)
                 .frame(width: fullH, height: fullW)
                 .rotationEffect(.degrees(-90))
