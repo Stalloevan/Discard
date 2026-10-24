@@ -21,7 +21,7 @@ struct SnakeGeo {
         self.count = count
         self.lo = lo
         self.hi = hi
-        self.rowCount = Int((Double(hi - lo + 1) / 5.0).rounded(.up))
+        self.rowCount = hi / 5 - lo / 5 + 1
     }
 
     var laneWidth: CGFloat {
@@ -55,10 +55,11 @@ struct SnakeGeo {
 
     /// The track is an S: the bottom row runs left to right, the next one right to left, and so on up.
     func point(_ p: Int, _ idx: Int) -> CGPoint {
-        let off = min(max(idx - lo, 0), hi - lo)
-        let row = off / perRow
-        let k = off % perRow
-        let col = row % 2 == 0 ? k : perRow - 1 - k
+        let i = min(max(idx, lo), hi)
+        let absRow = i / 5
+        let row = absRow - lo / 5
+        let k = i % 5
+        let col = absRow % 2 == 0 ? k : 4 - k
         let x = side + laneWidth * CGFloat(p) + 3 + cellW * (CGFloat(col) + 0.5)
         let y = size.height - bottom - cellH * (CGFloat(row) + 0.5)
         return CGPoint(x: x, y: y)
@@ -90,9 +91,10 @@ func visibleRange(_ pegs: [Peg]) -> (Int, Int) {
         high = max(high, max(p.back, p.front))
     }
     if pegs.isEmpty { return (0, 29) }
-    let lo = max(low - 1, 0)
-    let hi = min(high + 29, 121)
-    return (lo, max(hi, lo + 10))
+    // Whole rows of five, so the holes never change places - only the spacing between rows does.
+    let lo = (max(low - 1, 0) / 5) * 5
+    let hi = min((min(high + 29, 121) / 5) * 5 + 4, 121)
+    return (lo, max(hi, lo + 9))
 }
 
 /// A draggable peg. Big enough for a thumb.
@@ -332,7 +334,7 @@ struct PegBoard: View {
                     let e = 1 - pow(1 - pr, 3)
                     let a = g.point(p, idx - 1)
                     let b = g.point(p, idx)
-                    let theta = (1 - e) * 0.6
+                    let theta = (1 - e) * 0.35
                     let dx = b.x - a.x
                     let dy = b.y - a.y
                     let rx = dx * cos(theta) - dy * sin(theta)
